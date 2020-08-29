@@ -17,10 +17,13 @@ var (
 type AppConfig struct {
 	ID string
 	Messages MessageStorage
-	Broker Broker
 	PubSub PubSubConfig
+}
+
+type ServerConfig struct {
 	Auth Auth
 	CleanInterval time.Duration
+	Broker Broker
 }
 
 type App struct {
@@ -129,26 +132,25 @@ func (app *App) Disconnect(clientId string) {
 	app.pubsub.Disconnect(clientId)
 }
 
-func NewAppServer(config AppConfig) Server {
-	app := &App{
-		id:       config.ID,
-		events:   &EventsHandler{},
-		messages: nil,
-	}
-	app.pubsub = newPubsub(app, config.PubSub)
-
-	server := &AppServer{
+func (app *App) Server(config ServerConfig) Server {
+	return &AppServer{
 		auth:          config.Auth,
 		broker:        config.Broker,
 		cleanInterval: config.CleanInterval,
 		App:           app,
 		starter: 	   make(chan struct{}, 1),
 	}
-
-	return server
 }
 
-
+func NewApp(config AppConfig) *App {
+	app := &App{
+		id:       config.ID,
+		events:   &EventsHandler{},
+		messages: nil,
+	}
+	app.pubsub = newPubsub(app, config.PubSub)
+	return app
+}
 
 func (app *AppServer) DisconnectClient(client *Client) {
 	app.pubsub.DisconnectClient(client)
