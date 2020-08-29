@@ -11,23 +11,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a489920e-4d54-4dae-8a94-2e5714fd59bc" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.go" beforeDir="false" afterPath="$PROJECT_DIR$/app.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/broker.go" beforeDir="false" afterPath="$PROJECT_DIR$/broker.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/cleaner/cleaner.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/cleaner/garbage.go" beforeDir="false" afterPath="$PROJECT_DIR$/garbage.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/event-app/app.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/node.go" beforeDir="false" afterPath="$PROJECT_DIR$/node.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/opts.go" beforeDir="false" afterPath="$PROJECT_DIR$/options.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pubsub.go" beforeDir="false" afterPath="$PROJECT_DIR$/pubsub.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests" beforeDir="false" afterPath="$PROJECT_DIR$/tests" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/tests/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/websockets-notify/auth.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/websockets-notify/default_auth.go" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/websockets-notify/server.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
