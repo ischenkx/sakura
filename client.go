@@ -8,7 +8,7 @@ import (
 type ClientInfo struct {
 	ID string
 	UserID string
-	Transport Transport
+	AppID string
 }
 
 type ClientState int
@@ -28,6 +28,7 @@ type Client struct {
 	mu sync.Mutex
 	state ClientState
 	app *App
+	data sync.Map
 }
 
 type clientSendResult int
@@ -41,6 +42,12 @@ const (
 
 func (client *Client) ID() string {
 	return client.id
+}
+
+func (client *Client) IsActive() bool {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.state == ActiveClient
 }
 
 func (client *Client) inactivate() {
@@ -62,13 +69,6 @@ func (client *Client) tryInvalidate() bool {
 	}
 	return client.state == InvalidClient
 }
-
-func (client *Client) IsActive() bool {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-	return client.state == ActiveClient
-}
-
 
 func (client *Client) tryActivate(t Transport) (bool, []string) {
 	if t == nil {
@@ -137,4 +137,16 @@ func (client *Client) Leave(channels []string, all bool) {
 		Clients:  []string{client.id},
 		Channels: channels,
 	})
+}
+
+func (client *Client) Get(key string)(interface{}, bool) {
+	return client.data.Load(key)
+}
+
+func (client *Client) Set(key string, value interface{}) {
+	client.data.Store(key, value)
+}
+
+func (client *Client) Del(key string) {
+	client.data.Delete(key)
 }

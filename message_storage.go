@@ -1,6 +1,6 @@
 package notify
 
-type MessagesStorage interface {
+type MessageStorage interface {
 	Load(appId string, ids []string) ([]Message, []string)
 	Store(appId string, mes Message)
 	Clean()

@@ -1,23 +1,37 @@
 package notify
 
+import (
+	"time"
+)
+
 type BrokerEvent int
 
 const (
-	Send BrokerEvent = iota + 1
-	Join
-	Leave
-	Connect
-	Disconnect
+	SendEvent BrokerEvent = iota + 1
+	JoinEvent
+	LeaveEvent
+	ConnectEvent
+	DisconnectEvent
+	InstanceUpEvent
+	InstanceDownEvent
+	AppUpEvent
+	AppDownEvent
 )
 
-type BrokerMessage struct {
+type BrokerAction struct {
 	Data interface{}
 	AppID string
+	BrokerID string
 	Event BrokerEvent
+	Time time.Time
 }
+
+type BrokerEventHandler func(BrokerAction) error
 
 type Broker interface {
-	Handle(func(message BrokerMessage))
-	Send(message BrokerMessage)
+	// Handle register a new handler for broker events
+	// if handler returns non-nil error then handler is deleted
+	Handle(...BrokerEventHandler)
+	Emit(BrokerAction) error
+	ID() string
 }
-

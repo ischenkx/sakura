@@ -1,9 +1,13 @@
 package notify
 
-import "io"
+import (
+	"context"
+	"io"
+)
 
 type Server interface {
-	Connect(app string, info ClientInfo) (*Client, error)
+	Connect(interface{}, Transport) (*Client, error)
 	DisconnectClient(client *Client)
 	Handle(client *Client, r io.Reader) error
+	Run(ctx context.Context)
 }

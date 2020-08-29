@@ -1,59 +1,41 @@
 package notify
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"io"
 	"log"
-	"notify/cleaner"
-	"sync/atomic"
 	"time"
 )
 
-const (
-	RunningApp int32 = iota + 1
-	UpdatingApp
-	StoppedApp
-)
-
 var (
-	StoppedAppErr = errors.New("app is stopped")
 	IncorrectTransportErr = errors.New("transport is nil")
 )
 
 type AppConfig struct {
 	ID string
-	Messages MessagesStorage
+	Messages MessageStorage
 	Broker Broker
-	controlled bool
 	PubSub PubSubConfig
+	Auth Auth
+	CleanInterval time.Duration
 }
+
 type App struct {
 	id string
 	events *EventsHandler
 	pubsub *PubSub
+	messages MessageStorage
+}
+
+type AppServer struct {
+	auth Auth
 	broker Broker
-	messages MessagesStorage
-	cleaner *cleaner.Cleaner
-	controlled bool
-	state int32
-}
-
-func (app *App) IsRunning() bool {
-	return atomic.LoadInt32(&app.state) == RunningApp
-}
-
-func (app *App) switchState(from, to int32, updater func()) {
-	if atomic.CompareAndSwapInt32(&app.state, from, UpdatingApp) {
-		if updater != nil {
-			updater()
-		}
-		atomic.StoreInt32(&app.state, to)
-	} else {
-		time.Sleep(time.Microsecond * 10)
-		app.switchState(from, to, updater)
-	}
+	cleanInterval time.Duration
+	starter chan struct{}
+	*App
 }
 
 func (app *App) generateClientID() string {
@@ -83,23 +65,14 @@ func (app *App) On() *EventsHandler {
 }
 
 func (app *App) send(opts SendOptions) {
-	if !app.IsRunning() {
-		return
-	}
-	app.pubsub.Send(opts)
+	go app.pubsub.Send(opts)
 }
 
 func (app *App) join(opts JoinOptions) {
-	if !app.IsRunning() {
-		return
-	}
 	app.pubsub.Join(opts)
 }
 
 func (app *App) leave(opts LeaveOptions) {
-	if !app.IsRunning() {
-		return
-	}
 	app.pubsub.Leave(opts)
 }
 
@@ -111,12 +84,9 @@ func (app *App) loadMessages(ids []string) ([]Message, []string) {
 }
 
 // highly not recommended to call it
-// because it's automatically called by cleaner
+// because it's automatically called at a specified interval
 // in node or in app
-func (app *App) Clean() {
-	if !app.IsRunning() {
-		return
-	}
+func (app *App) Clean(ctx context.Context) {
 	start := time.Now()
 	ids := app.pubsub.Clean()
 	elapsed := time.Since(start)
@@ -127,9 +97,6 @@ func (app *App) Clean() {
 }
 
 func (app *App) Send(mes MessageOptions) {
-	if !app.IsRunning() {
-		return
-	}
 	opts := app.identifyMessage(mes)
 	app.send(opts)
 	app.events.handle(opts)
@@ -139,137 +106,89 @@ func (app *App) Send(mes MessageOptions) {
 }
 
 func (app *App) Join(opts JoinOptions) {
-	if !app.IsRunning() {
-		return
-	}
 	app.join(opts)
 	app.events.handle(opts)
 }
 
 func (app *App) Leave(opts LeaveOptions) {
-	if !app.IsRunning() {
-		return
-	}
 	app.leave(opts)
 	app.events.handle(opts)
 }
 
-func (app *App) Connect(info ClientInfo) (*Client, error) {
-	if !app.IsRunning() {
-		return nil, StoppedAppErr
-	}
-	if info.Transport == nil {
+func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
+	if transport == nil {
 		return nil, IncorrectTransportErr
 	}
 	if info.ID == NilId {
 		info.ID = app.generateClientID()
 	}
-	return app.pubsub.Connect(info)
+	return app.pubsub.Connect(info, transport)
 }
 
 func (app *App) Disconnect(clientId string) {
-	fmt.Println("Disconnecting:", clientId)
 	app.pubsub.Disconnect(clientId)
 }
 
-func (app *App) Run() {
-	app.switchState(StoppedApp, RunningApp, func() {
-		if !app.controlled {
-			if app.cleaner != nil {
-				app.cleaner.Run()
-			}
-			if app.broker != nil {
-				app.broker.Handle(func(mes BrokerMessage) {
-					if app == nil {
-						return
-					}
-					if app.id != mes.AppID {
-						return
-					}
-					switch mes.Event {
-					case Send:
-						if opts, ok := mes.Data.(SendOptions); ok {
-							app.send(opts)
-						}
-					case Join:
-						if opts, ok := mes.Data.(JoinOptions); ok {
-							app.join(opts)
-						}
-					case Leave:
-						if opts, ok := mes.Data.(LeaveOptions); ok {
-							app.leave(opts)
-						}
-					}
-				})
-			}
-
-			if app.cleaner != nil {
-				app.cleaner.Run()
-			}
-		}
-
-	})
-}
-
-func (app *App) Stop() {
-	app.switchState(RunningApp, StoppedApp, func() {
-		if !app.controlled {
-			if app.cleaner != nil {
-				app.cleaner.Stop()
-			}
-		}
-	})
-}
-
-func (app *App) Server() Server {
-	return (*ServableApp)(app)
-}
-
-func NewApp(config AppConfig) *App {
+func NewAppServer(config AppConfig) Server {
 	app := &App{
-		id: config.ID,
-		events: &EventsHandler{},
-		broker: config.Broker,
-		messages: config.Messages,
-		controlled: config.controlled,
-		state: StoppedApp,
-	}
-	if !config.controlled {
-		app.cleaner = cleaner.New(app, time.Second * 10)
+		id:       config.ID,
+		events:   &EventsHandler{},
+		messages: nil,
 	}
 	app.pubsub = newPubsub(app, config.PubSub)
-	return app
+
+	server := &AppServer{
+		auth:          config.Auth,
+		broker:        config.Broker,
+		cleanInterval: config.CleanInterval,
+		App:           app,
+		starter: 	   make(chan struct{}),
+	}
+
+	return server
 }
 
-type ServableApp App
 
-func (sapp *ServableApp) DisconnectClient(client *Client) {
-	app := (*App)(sapp)
-	if !app.IsRunning() {
-		return
-	}
+
+func (app *AppServer) DisconnectClient(client *Client) {
 	app.pubsub.DisconnectClient(client)
 }
 
-func (sapp *ServableApp) Connect(appID string, info ClientInfo) (*Client, error) {
-	app := (*App)(sapp)
-	if !app.IsRunning() {
-		return nil, StoppedAppErr
+//Connect takes two arguments: data and transport.
+//If ServerApp has Auth then data is passed to Auth.Verify
+//and gets client's info from there, else Connect will try to
+//convert data to ClientInfo.
+func (app *AppServer) Connect(data interface{}, transport Transport) (*Client, error) {
+	if transport == nil || data == nil {
+		return nil, errors.New("invalid data or transport")
 	}
-	if appID != app.id {
+
+	var (
+		clientInfo ClientInfo
+		ok bool
+		)
+
+	if app.auth != nil {
+		clientInfo, ok = app.auth.Verify(data)
+	} else {
+		clientInfo, ok = data.(ClientInfo)
+	}
+	if !ok {
+		return nil, errors.New("failed to get client info")
+	}
+	if clientInfo.AppID != app.id {
 		return nil, errors.New("wrong app")
 	}
-	return app.Connect(info)
+	return app.connect(clientInfo, transport)
 }
 
-func (sapp *ServableApp) Handle(client *Client, r io.Reader) error {
+func (app *AppServer) Handle(client *Client, r io.Reader) error {
 	if client == nil {
 		return errors.New("client is nil")
 	}
 	if r == nil {
 		return nil
 	}
-	app := (*App)(sapp)
 	err := app.events.handleData(client, r)
 	if err != nil {
 		app.pubsub.DisconnectClient(client)
@@ -277,4 +196,55 @@ func (sapp *ServableApp) Handle(client *Client, r io.Reader) error {
 	return err
 }
 
+func (app *AppServer) Run(ctx context.Context) {
+	app.starter <- struct{}{}
+	defer func() {
+		<-app.starter
+	}()
 
+	cleaner := time.NewTicker(app.cleanInterval)
+	if app.broker != nil {
+		app.broker.Handle(func(action BrokerAction) error {
+			select {
+			case <-ctx.Done():
+				return errors.New("ctx is done")
+			default:
+			}
+
+			if opts, ok := action.Data.(SendOptions); ok {
+				app.send(opts)
+			}
+			if opts, ok := action.Data.(JoinOptions); ok {
+				app.join(opts)
+			}
+			if opts, ok := action.Data.(LeaveOptions); ok {
+				app.leave(opts)
+			}
+			return nil
+		})
+
+		app.broker.Emit(BrokerAction{
+			Event: InstanceUpEvent,
+		})
+		app.broker.Emit(BrokerAction{
+			AppID: app.id,
+			Event: AppUpEvent,
+		})
+		defer app.broker.Emit(BrokerAction{
+			Event: InstanceDownEvent,
+		})
+		defer app.broker.Emit(BrokerAction{
+			AppID: app.id,
+			Event: AppDownEvent,
+		})
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-cleaner.C:
+			go app.Clean(ctx)
+		}
+	}
+}

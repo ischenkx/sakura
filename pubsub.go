@@ -3,13 +3,13 @@ package notify
 import (
 	"errors"
 	"fmt"
-	"notify/cleaner"
 	"sync"
 	"time"
 )
 
 type PubSubConfig struct {
-	ClientExpirationTime time.Duration
+	ClientTTL time.Duration
+	ClientMessageBufferSize int
 }
 
 type PubSub struct {
@@ -18,14 +18,15 @@ type PubSub struct {
 	channels map[string]*Channel
 	subs map[string]map[string]struct{}
 
-	garbage *cleaner.Garbage
+	config PubSubConfig
+	garbage *Garbage
 	app *App
 	mu sync.RWMutex
 }
 
 // Connect adds a new client. Also it can restore client from garbage and send lost data.
-func (pubsub *PubSub) Connect(info ClientInfo) (*Client, error) {
-	if info.ID == NilId || info.Transport == nil {
+func (pubsub *PubSub) Connect(info ClientInfo, transport Transport) (*Client, error) {
+	if info.ID == NilId || transport == nil {
 		return nil, errors.New("invalid client info")
 	}
 	pubsub.mu.Lock()
@@ -34,10 +35,10 @@ func (pubsub *PubSub) Connect(info ClientInfo) (*Client, error) {
 		client = &Client{
 			id:        info.ID,
 			userId:    info.UserID,
-			transport: info.Transport,
+			transport: transport,
 			state:     ActiveClient,
 			messageBuffer: MessageBuffer{
-				maxSize: 500,
+				maxSize: pubsub.config.ClientMessageBufferSize,
 			},
 			app:       pubsub.app,
 		}
@@ -59,7 +60,7 @@ func (pubsub *PubSub) Connect(info ClientInfo) (*Client, error) {
 		return nil, errors.New("client id does not match user id")
 	}
 	var err error = nil
-	if ok, buffer := client.tryActivate(info.Transport); ok {
+	if ok, buffer := client.tryActivate(transport); ok {
 		pubsub.mu.Unlock()
 		pubsub.garbage.Del(client.id)
 		//todo: figure out what to do with not found messages
@@ -83,9 +84,9 @@ func (pubsub *PubSub) Connect(info ClientInfo) (*Client, error) {
 			client = &Client{
 				id:        info.ID,
 				userId:    info.UserID,
-				transport: info.Transport,
+				transport: transport,
 				messageBuffer: MessageBuffer{
-					maxSize: 500,
+					maxSize: pubsub.config.ClientMessageBufferSize,
 				},
 				state:     ActiveClient,
 				app:       pubsub.app,
@@ -258,7 +259,6 @@ func (pubsub *PubSub) Send(opts SendOptions) {
 	channels := make([]*Channel, 0, len(opts.Channels))
 
 	pubsub.mu.RLock()
-	collectingStart := time.Now()
 	if len(pubsub.clients) > 0 {
 		if len(opts.Clients) > 0 {
 			for _, id := range opts.Clients {
@@ -286,12 +286,7 @@ func (pubsub *PubSub) Send(opts SendOptions) {
 			}
 		}
 	}
-	collectingEnd := time.Now()
 	pubsub.mu.RUnlock()
-	elapsed := collectingEnd.Sub(collectingStart)
-	if elapsed > 0 {
-		fmt.Println(elapsed)
-	}
 	for _, client := range clients {
 		client.send(opts.Message)
 	}
@@ -342,16 +337,17 @@ func (pubsub *PubSub) Clean() []string {
 }
 
 func newPubsub(app *App, config PubSubConfig) *PubSub {
-	if config.ClientExpirationTime == 0 {
-		config.ClientExpirationTime = time.Minute * 5
+	if config.ClientTTL == 0 {
+		config.ClientTTL = time.Minute * 5
 	}
 	pubsub := &PubSub{
-		clients: map[string]*Client{},
-		users: map[string]map[string]struct{}{},
+		clients:  map[string]*Client{},
+		users:    map[string]map[string]struct{}{},
 		channels: map[string]*Channel{},
-		subs: map[string]map[string]struct{}{},
-		garbage:  cleaner.NewGarbage(config.ClientExpirationTime),
-		app: app,
+		subs:     map[string]map[string]struct{}{},
+		garbage:  NewGarbage(config.ClientTTL),
+		config:   config,
+		app:      app,
 	}
 	return pubsub
 }
