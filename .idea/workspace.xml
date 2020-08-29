@@ -11,8 +11,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a489920e-4d54-4dae-8a94-2e5714fd59bc" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/server_config.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app.go" beforeDir="false" afterPath="$PROJECT_DIR$/app.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/broker.go" beforeDir="false" afterPath="$PROJECT_DIR$/broker/broker.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/client.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/events_handler.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/garbage.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/options.go" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pubsub.go" beforeDir="false" afterPath="$PROJECT_DIR$/pubsub.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,20 +41,27 @@
   <component name="ProjectId" id="1g33ML0rRdYOGIaZIHhEvZ4B49J" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
+    <option name="autoscrollFromSource" value="true" />
+    <option name="autoscrollToSource" value="true" />
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
+    <option name="sortByType" value="true" />
   </component>
   <component name="PropertiesComponent">
     <property name="DefaultGoTemplateProperty" value="Go File" />
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="configurable.Global.GOPATH.is.expanded" value="true" />
+    <property name="configurable.Module.GOPATH.is.expanded" value="false" />
+    <property name="configurable.Project.GOPATH.is.expanded" value="true" />
     <property name="go.import.settings.migrated" value="true" />
     <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/../webnotify-test" />
-    <property name="settings.editor.selected.configurable" value="go.vgo" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="settings.editor.selected.configurable" value="preferences.customizations" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\code\go\notify\broker" />
       <recent name="C:\Users\34614\go\src\notify" />
       <recent name="C:\Users\34614\go\src\notify\balancer" />
       <recent name="C:\Users\34614\go\src\notify\node" />
@@ -81,14 +96,14 @@
       <screen x="0" y="0" width="1707" height="920" />
     </state>
     <state x="12" y="293" width="1521" height="735" key="DiffContextDialog/0.0.1707.920@0.0.1707.920" timestamp="1598191167191" />
-    <state x="528" y="95" key="FileChooserDialogImpl" timestamp="1598703483522">
+    <state x="528" y="95" key="FileChooserDialogImpl" timestamp="1598711211461">
       <screen x="0" y="0" width="1707" height="920" />
     </state>
-    <state x="528" y="95" key="FileChooserDialogImpl/0.0.1707.920@0.0.1707.920" timestamp="1598703483522" />
-    <state x="241" y="0" key="SettingsEditor" timestamp="1598702585274">
+    <state x="528" y="95" key="FileChooserDialogImpl/0.0.1707.920@0.0.1707.920" timestamp="1598711211461" />
+    <state x="241" y="0" key="SettingsEditor" timestamp="1598736633857">
       <screen x="0" y="0" width="1707" height="920" />
     </state>
-    <state x="241" y="0" key="SettingsEditor/0.0.1707.920@0.0.1707.920" timestamp="1598702585274" />
+    <state x="241" y="0" key="SettingsEditor/0.0.1707.920@0.0.1707.920" timestamp="1598736633857" />
     <state x="93" y="93" width="1521" height="735" key="com.intellij.history.integration.ui.views.DirectoryHistoryDialog" timestamp="1598191167191">
       <screen x="0" y="0" width="1707" height="920" />
     </state>

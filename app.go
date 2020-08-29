@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/RomanIschenko/notify/events"
 	"github.com/google/uuid"
-	"io"
 	"log"
 	"time"
 )
@@ -14,31 +14,11 @@ var (
 	IncorrectTransportErr = errors.New("transport is nil")
 )
 
-type AppConfig struct {
-	ID string
-	Messages MessageStorage
-	PubSub PubSubConfig
-}
-
-type ServerConfig struct {
-	Auth Auth
-	CleanInterval time.Duration
-	Broker Broker
-}
-
 type App struct {
 	id string
-	events *EventsHandler
+	events *events.Listener
 	pubsub *PubSub
 	messages MessageStorage
-}
-
-type AppServer struct {
-	auth Auth
-	broker Broker
-	cleanInterval time.Duration
-	starter chan struct{}
-	*App
 }
 
 func (app *App) generateClientID() string {
@@ -63,12 +43,12 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) On() *EventsHandler {
+func (app *App) Events() *events.Listener {
 	return app.events
 }
 
 func (app *App) send(opts SendOptions) {
-	go app.pubsub.Send(opts)
+	app.pubsub.Send(opts)
 }
 
 func (app *App) join(opts JoinOptions) {
@@ -102,7 +82,10 @@ func (app *App) Clean(ctx context.Context) {
 func (app *App) Send(mes MessageOptions) {
 	opts := app.identifyMessage(mes)
 	app.send(opts)
-	app.events.handle(opts)
+	app.events.Emit(events.Event{
+		Data: opts,
+		Type: Send,
+	})
 	if app.messages != nil {
 		app.messages.Store(app.id, opts.Message)
 	}
@@ -110,12 +93,18 @@ func (app *App) Send(mes MessageOptions) {
 
 func (app *App) Join(opts JoinOptions) {
 	app.join(opts)
-	app.events.handle(opts)
+	app.events.Emit(events.Event{
+		Data: opts,
+		Type: Join,
+	})
 }
 
 func (app *App) Leave(opts LeaveOptions) {
 	app.leave(opts)
-	app.events.handle(opts)
+	app.events.Emit(events.Event{
+		Data: opts,
+		Type: Leave,
+	})
 }
 
 func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
@@ -125,128 +114,30 @@ func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
 	if info.ID == NilId {
 		info.ID = app.generateClientID()
 	}
-	return app.pubsub.Connect(info, transport)
+	client, err := app.pubsub.Connect(info, transport)
+	if err == nil {
+		app.events.Emit(events.Event{
+			Data: client,
+			Type: Connect,
+		})
+	}
+	return client, err
 }
 
 func (app *App) Disconnect(clientId string) {
 	app.pubsub.Disconnect(clientId)
-}
-
-func (app *App) Server(config ServerConfig) Server {
-	return &AppServer{
-		auth:          config.Auth,
-		broker:        config.Broker,
-		cleanInterval: config.CleanInterval,
-		App:           app,
-		starter: 	   make(chan struct{}, 1),
-	}
+	app.events.Emit(events.Event{
+		Data: clientId,
+		Type: Disconnect,
+	})
 }
 
 func NewApp(config AppConfig) *App {
 	app := &App{
 		id:       config.ID,
-		events:   &EventsHandler{},
-		messages: nil,
+		events:   events.NewListener(),
+		messages: config.Messages,
 	}
 	app.pubsub = newPubsub(app, config.PubSub)
 	return app
-}
-
-func (app *AppServer) DisconnectClient(client *Client) {
-	app.pubsub.DisconnectClient(client)
-}
-
-//Connect takes two arguments: data and transport.
-//If ServerApp has Auth then data is passed to Auth.Verify
-//and gets client's info from there, else Connect will try to
-//convert data to ClientInfo.
-func (app *AppServer) Connect(data interface{}, transport Transport) (*Client, error) {
-	if transport == nil || data == nil {
-		return nil, errors.New("invalid data or transport")
-	}
-
-	var (
-		clientInfo ClientInfo
-		ok bool
-		)
-
-	if app.auth != nil {
-		clientInfo, ok = app.auth.Verify(data)
-	} else {
-		clientInfo, ok = data.(ClientInfo)
-	}
-	if !ok {
-		return nil, errors.New("failed to get client info")
-	}
-	if clientInfo.AppID != app.id {
-		return nil, errors.New("wrong app")
-	}
-	return app.connect(clientInfo, transport)
-}
-
-func (app *AppServer) Handle(client *Client, r io.Reader) error {
-	if client == nil {
-		return errors.New("client is nil")
-	}
-	if r == nil {
-		return nil
-	}
-	err := app.events.handleData(client, r)
-	if err != nil {
-		app.pubsub.DisconnectClient(client)
-	}
-	return err
-}
-
-func (app *AppServer) Run(ctx context.Context) {
-	app.starter <- struct{}{}
-	defer func() {
-		<-app.starter
-	}()
-
-	cleaner := time.NewTicker(app.cleanInterval)
-	if app.broker != nil {
-		app.broker.Handle(func(action BrokerAction) error {
-			select {
-			case <-ctx.Done():
-				return errors.New("ctx is done")
-			default:
-			}
-
-			if opts, ok := action.Data.(SendOptions); ok {
-				app.send(opts)
-			}
-			if opts, ok := action.Data.(JoinOptions); ok {
-				app.join(opts)
-			}
-			if opts, ok := action.Data.(LeaveOptions); ok {
-				app.leave(opts)
-			}
-			return nil
-		})
-
-		app.broker.Emit(BrokerAction{
-			Event: InstanceUpEvent,
-		})
-		app.broker.Emit(BrokerAction{
-			AppID: app.id,
-			Event: AppUpEvent,
-		})
-		defer app.broker.Emit(BrokerAction{
-			Event: InstanceDownEvent,
-		})
-		defer app.broker.Emit(BrokerAction{
-			AppID: app.id,
-			Event: AppDownEvent,
-		})
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-cleaner.C:
-			go app.Clean(ctx)
-		}
-	}
 }

@@ -5,12 +5,6 @@ import (
 	"sync"
 )
 
-type ClientInfo struct {
-	ID string
-	UserID string
-	AppID string
-}
-
 type ClientState int
 
 const (
@@ -35,10 +29,13 @@ type clientSendResult int
 
 const (
 	successfulSend clientSendResult = iota + 1
-	invalidClientSend = iota + 1
-	inactiveClientSend = iota + 1
-
+	invalidClientSend
+	inactiveClientSend
 )
+
+func (client *Client) UserID() string {
+	return client.userId
+}
 
 func (client *Client) ID() string {
 	return client.id

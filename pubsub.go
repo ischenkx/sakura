@@ -7,21 +7,15 @@ import (
 	"time"
 )
 
-type PubSubConfig struct {
-	ClientTTL time.Duration
-	ClientMessageBufferSize int
-}
-
 type PubSub struct {
-	clients map[string]*Client
-	users map[string]map[string]struct{}
-	channels map[string]*Channel
-	subs map[string]map[string]struct{}
-
-	config PubSubConfig
-	garbage *Garbage
-	app *App
-	mu sync.RWMutex
+	clients 		map[string]*Client
+	users 			map[string]map[string]struct{}
+	channels 		map[string]*Channel
+	subs 			map[string]map[string]struct{}
+	config 			PubSubConfig
+	inactiveClients map[string]time.Time
+	app 			*App
+	mu 				sync.RWMutex
 }
 
 // Connect adds a new client. Also it can restore client from garbage and send lost data.
@@ -62,7 +56,7 @@ func (pubsub *PubSub) Connect(info ClientInfo, transport Transport) (*Client, er
 	var err error = nil
 	if ok, buffer := client.tryActivate(transport); ok {
 		pubsub.mu.Unlock()
-		pubsub.garbage.Del(client.id)
+		delete(pubsub.inactiveClients, client.id)
 		//todo: figure out what to do with not found messages
 		fmt.Println("restoring...", buffer)
 		messages, _ := pubsub.app.loadMessages(buffer)
@@ -124,7 +118,7 @@ func (pubsub *PubSub) Disconnect(id string) {
 		return
 	}
 	client.inactivate()
-	pubsub.garbage.Add(client.id)
+	pubsub.inactiveClients[client.id] = time.Now()
 }
 
 // DisconnectClient deletes client from pubsub by it's instance.
@@ -134,14 +128,14 @@ func (pubsub *PubSub) DisconnectClient(client *Client) {
 		return
 	}
 
-	pubsub.mu.RLock()
-	defer pubsub.mu.RUnlock()
+	pubsub.mu.Lock()
+	defer pubsub.mu.Lock()
 	realClient := pubsub.clients[client.id]
 	if realClient != client {
 		return
 	}
 	client.inactivate()
-	pubsub.garbage.Add(client.id)
+	pubsub.inactiveClients[client.id] = time.Now()
 }
 
 // Join adds clients to specified channels
@@ -299,16 +293,22 @@ func (pubsub *PubSub) Send(opts SendOptions) {
 // After Clean deleted clients become invalid and cannot be used anymore.
 // Returns list of ids of deleted clients
 func (pubsub *PubSub) Clean() []string {
-	data := pubsub.garbage.Flush()
-	if len(data) == 0 {
+	pubsub.mu.RLock()
+	inactiveIds := make([]string, len(pubsub.inactiveClients))
+	now := time.Now()
+	for id, t := range pubsub.inactiveClients {
+		if now.Sub(t) > pubsub.config.ClientTTL {
+			inactiveIds = append(inactiveIds, id)
+		}
+	}
+	pubsub.mu.RUnlock()
+	if len(inactiveIds) == 0 {
 		return nil
 	}
-	clients := make([]string, 0, len(data))
-	fmt.Println("Cleaning pubsub...")
+	clients := make([]string, 0, len(inactiveIds))
 	pubsub.mu.Lock()
 	defer pubsub.mu.Unlock()
-	start := time.Now()
-	for _, id := range data {
+	for _, id := range inactiveIds {
 		if client, ok := pubsub.clients[id]; ok {
 			if client.tryInvalidate() {
 				clients = append(clients, id)
@@ -332,7 +332,6 @@ func (pubsub *PubSub) Clean() []string {
 			}
 		}
 	}
-	fmt.Println(time.Since(start), " - since pubsub cleaning started")
 	return clients
 }
 
@@ -341,13 +340,13 @@ func newPubsub(app *App, config PubSubConfig) *PubSub {
 		config.ClientTTL = time.Minute * 5
 	}
 	pubsub := &PubSub{
-		clients:  map[string]*Client{},
-		users:    map[string]map[string]struct{}{},
-		channels: map[string]*Channel{},
-		subs:     map[string]map[string]struct{}{},
-		garbage:  NewGarbage(config.ClientTTL),
-		config:   config,
-		app:      app,
+		clients:  		 map[string]*Client{},
+		users:   		 map[string]map[string]struct{}{},
+		channels: 		 map[string]*Channel{},
+		subs:     		 map[string]map[string]struct{}{},
+		inactiveClients: map[string]time.Time{},
+		config:   		 config,
+		app:      		 app,
 	}
 	return pubsub
 }
