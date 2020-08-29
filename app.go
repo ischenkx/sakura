@@ -142,7 +142,7 @@ func NewAppServer(config AppConfig) Server {
 		broker:        config.Broker,
 		cleanInterval: config.CleanInterval,
 		App:           app,
-		starter: 	   make(chan struct{}),
+		starter: 	   make(chan struct{}, 1),
 	}
 
 	return server
