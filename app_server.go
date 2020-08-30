@@ -23,7 +23,7 @@ type AppServer struct {
 
 func (app *AppServer) DisconnectClient(client *Client) {
 	app.pubsub.DisconnectClient(client)
-	app.events.Emit(events.Event{
+	app.events.Publish(events.Event{
 		Data: client.id, Type: Disconnect,
 	})
 }
@@ -74,15 +74,15 @@ func (app *AppServer) runBroker(ctx context.Context) {
 	if app.broker == nil {
 		return
 	}
-	brokerChannel := app.broker.Subscribe()
-	defer app.broker.Unsubscribe(brokerChannel)
+	brokerSub := app.broker.Subscribe()
+	defer brokerSub.Close()
 
-	appChannel := app.events.Listen()
-	defer app.events.Close(appChannel)
+	subscription := app.events.Subscribe()
+	defer subscription.Close()
 
 	for {
 		select {
-		case appEvent := <-appChannel:
+		case appEvent := <-subscription.Channel():
 			switch appEvent.Type {
 			case Join, Leave, Send:
 				app.broker.Publish(broker.Message{
@@ -91,7 +91,7 @@ func (app *AppServer) runBroker(ctx context.Context) {
 					Event:    appEvent.Type,
 				})
 			}
-		case mes := <-brokerChannel:
+		case mes := <-brokerSub.Channel():
 			if mes.AppID != app.id {
 				continue
 			}

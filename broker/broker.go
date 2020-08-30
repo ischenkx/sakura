@@ -1,8 +1,7 @@
 package broker
 
 type Broker interface {
-	Subscribe() chan Message
-	Unsubscribe(chan Message)
+	Subscribe() Subscription
 	Publish(Message) error
 	ID() string
 }

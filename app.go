@@ -16,7 +16,7 @@ var (
 
 type App struct {
 	id string
-	events *events.Listener
+	events *events.Pubsub
 	pubsub *PubSub
 	messages MessageStorage
 }
@@ -43,7 +43,7 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Events() *events.Listener {
+func (app *App) Events() *events.Pubsub {
 	return app.events
 }
 
@@ -82,7 +82,7 @@ func (app *App) Clean(ctx context.Context) {
 func (app *App) Send(mes MessageOptions) {
 	opts := app.identifyMessage(mes)
 	app.send(opts)
-	app.events.Emit(events.Event{
+	app.events.Publish(events.Event{
 		Data: opts,
 		Type: Send,
 	})
@@ -93,7 +93,7 @@ func (app *App) Send(mes MessageOptions) {
 
 func (app *App) Join(opts JoinOptions) {
 	app.join(opts)
-	app.events.Emit(events.Event{
+	app.events.Publish(events.Event{
 		Data: opts,
 		Type: Join,
 	})
@@ -101,7 +101,7 @@ func (app *App) Join(opts JoinOptions) {
 
 func (app *App) Leave(opts LeaveOptions) {
 	app.leave(opts)
-	app.events.Emit(events.Event{
+	app.events.Publish(events.Event{
 		Data: opts,
 		Type: Leave,
 	})
@@ -116,7 +116,7 @@ func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
 	}
 	client, err := app.pubsub.Connect(info, transport)
 	if err == nil {
-		app.events.Emit(events.Event{
+		app.events.Publish(events.Event{
 			Data: client,
 			Type: Connect,
 		})
@@ -126,7 +126,7 @@ func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
 
 func (app *App) Disconnect(clientId string) {
 	app.pubsub.Disconnect(clientId)
-	app.events.Emit(events.Event{
+	app.events.Publish(events.Event{
 		Data: clientId,
 		Type: Disconnect,
 	})
@@ -135,7 +135,7 @@ func (app *App) Disconnect(clientId string) {
 func NewApp(config AppConfig) *App {
 	app := &App{
 		id:       config.ID,
-		events:   events.NewListener(),
+		events:   events.NewPubsub(),
 		messages: config.Messages,
 	}
 	app.pubsub = newPubsub(app, config.PubSub)
