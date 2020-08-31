@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"github.com/RomanIschenko/notify/message"
 	"sync"
 )
 
@@ -57,7 +58,7 @@ func (ch *Channel) del(id string) (int, bool) {
 	return l, deleted
 }
 
-func (ch *Channel) send(mes Message) {
+func (ch *Channel) send(mes message.Message) {
 	ch.mu.RLock()
 	defer ch.mu.RUnlock()
 	if ch.state != ActiveChannel {

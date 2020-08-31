@@ -1,6 +1,6 @@
 package notify
 
-import events "github.com/RomanIschenko/notify/events_pubsub"
+import events "github.com/RomanIschenko/notify/event_pubsub"
 
 const (
 	SendEvent         events.EventType = "send"

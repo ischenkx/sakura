@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"github.com/RomanIschenko/notify/message"
 	"github.com/RomanIschenko/notify/options"
 	"sync"
 )
@@ -18,7 +19,7 @@ type Client struct {
 	transport Transport
 
 	//it is used to save messages while client is closed
-	messageBuffer MessageBuffer
+	messageBuffer message.Buffer
 	mu            sync.Mutex
 	state         ClientState
 	app           *App
@@ -85,7 +86,7 @@ func (client *Client) tryActivate(t Transport) (bool, []string) {
 	return true, buffer
 }
 
-func (client *Client) send(mes Message) clientSendResult {
+func (client *Client) send(mes message.Message) clientSendResult {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	if client.state == InvalidClient {

@@ -3,6 +3,7 @@ package notify
 import (
 	"errors"
 	"fmt"
+	"github.com/RomanIschenko/notify/message"
 	"github.com/RomanIschenko/notify/options"
 	"sync"
 	"time"
@@ -32,9 +33,7 @@ func (pubsub *PubSub) Connect(info ClientInfo, transport Transport) (*Client, er
 			userId:    info.UserID,
 			transport: transport,
 			state:     ActiveClient,
-			messageBuffer: MessageBuffer{
-				maxSize: pubsub.config.ClientMessageBufferSize,
-			},
+			messageBuffer: message.NewBuffer(pubsub.config.ClientMessageBufferSize),
 			app:       pubsub.app,
 		}
 		pubsub.clients[client.id] = client
@@ -80,9 +79,7 @@ func (pubsub *PubSub) Connect(info ClientInfo, transport Transport) (*Client, er
 				id:        info.ID,
 				userId:    info.UserID,
 				transport: transport,
-				messageBuffer: MessageBuffer{
-					maxSize: pubsub.config.ClientMessageBufferSize,
-				},
+				messageBuffer: message.NewBuffer(pubsub.config.ClientMessageBufferSize),
 				state:     ActiveClient,
 				app:       pubsub.app,
 			}

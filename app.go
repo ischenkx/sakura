@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	events "github.com/RomanIschenko/notify/events_pubsub"
+	events "github.com/RomanIschenko/notify/event_pubsub"
+	"github.com/RomanIschenko/notify/message"
 	"github.com/RomanIschenko/notify/options"
 	"github.com/google/uuid"
 	"log"
@@ -16,10 +17,10 @@ var (
 )
 
 type App struct {
-	id string
-	events *events.Pubsub
-	pubsub *PubSub
-	messages MessageStorage
+	id       string
+	events   *events.Pubsub
+	pubsub   *PubSub
+	messages message.Storage
 }
 
 func (app *App) generateClientID() string {
@@ -27,7 +28,7 @@ func (app *App) generateClientID() string {
 }
 
 func (app *App) identifyMessage(opts options.MessageSend) options.Send {
-	mes := Message{
+	mes := message.Message{
 		Data: opts.Data,
 		ID:   fmt.Sprintf("%s-%s", app.id, uuid.New().String()),
 	}
@@ -62,7 +63,7 @@ func (app *App) leave(opts options.Leave) {
 	app.pubsub.Leave(opts)
 }
 
-func (app *App) loadMessages(ids []string) ([]Message, []string) {
+func (app *App) loadMessages(ids []string) ([]message.Message, []string) {
 	if app.messages == nil {
 		return nil, nil
 	}

@@ -1,6 +1,8 @@
 package notify
 
+import "github.com/RomanIschenko/notify/message"
+
 type Transport interface {
-	Send(message Message)
+	Send(message message.Message)
 	Close()
 }

@@ -1,4 +1,4 @@
-package notify
+package message
 
 type Message struct {
 	Data []byte

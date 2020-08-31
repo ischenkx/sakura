@@ -1,6 +1,6 @@
 package notifier
 
-import events "github.com/RomanIschenko/notify/events_pubsub"
+import events "github.com/RomanIschenko/notify/event_pubsub"
 
 const (
 	BrokerSend events.EventType = "broker_send"

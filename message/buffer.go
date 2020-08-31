@@ -1,13 +1,13 @@
-package notify
+package message
 
-type MessageBuffer struct {
+type Buffer struct {
 	buffer []string
 	maxSize int
 	index  int
 	overrun bool
 }
 
-func (m *MessageBuffer) Push(id string) {
+func (m *Buffer) Push(id string) {
 	if m.buffer == nil {
 		m.buffer = []string{}
 	}
@@ -22,7 +22,7 @@ func (m *MessageBuffer) Push(id string) {
 	}
 }
 
-func (m *MessageBuffer) Reset() ([]string, bool) {
+func (m *Buffer) Reset() ([]string, bool) {
 	overrun, buffer := m.overrun, m.buffer
 	m.overrun = false
 	m.buffer = nil
@@ -30,3 +30,8 @@ func (m *MessageBuffer) Reset() ([]string, bool) {
 	return buffer, overrun
 }
 
+func NewBuffer(maxSize int) Buffer {
+	return Buffer{
+		maxSize: maxSize,
+	}
+}

@@ -1,12 +1,14 @@
 package options
 
-import "github.com/RomanIschenko/notify"
+import (
+	"github.com/RomanIschenko/notify/message"
+)
 
 type Send struct {
 	Users 	   []string
 	Clients    []string
 	Channels   []string
 	ToBeStored bool
-	notify.Message
+	message.Message
 	EventOptions
 }

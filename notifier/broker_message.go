@@ -1,7 +1,7 @@
 package notifier
 
 import (
-	events "github.com/RomanIschenko/notify/events_pubsub"
+	events "github.com/RomanIschenko/notify/event_pubsub"
 	"time"
 )
 
