@@ -13,11 +13,11 @@ import (
 type DataHandler func(client *notify.Client, r io.Reader) error
 
 type AppServer struct {
-	auth          Auth
-	broker        Broker
-	cleanInterval time.Duration
-	dataHandler   DataHandler
-	starter       chan struct{}
+	auth          	   Auth
+	broker         	   Broker
+	cleanInterval 	   time.Duration
+	dataHandler   	   DataHandler
+	starter     	   chan struct{}
 	*notify.App
 }
 
@@ -67,15 +67,35 @@ func (app *AppServer) Handle(client *notify.Client, r io.Reader) error {
 	return app.dataHandler(client, r)
 }
 
-func (app *AppServer) runBroker(ctx context.Context) {
+func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 	if app.broker == nil {
 		return
 	}
 	brokerSub := app.broker.Subscribe()
 	defer brokerSub.Close()
-
 	subscription := app.Events().Subscribe()
 	defer subscription.Close()
+
+	app.broker.Publish(BrokerMessage{
+		Data:     ctx.Value("instanceUpArg"),
+		AppID:    app.ID(),
+		Event:    BrokerInstanceUp,
+	})
+
+	defer app.broker.Publish(BrokerMessage{
+		AppID:    app.ID(),
+		Event:    BrokerInstanceDown,
+	})
+
+	app.broker.Publish(BrokerMessage{
+		AppID:    app.ID(),
+		Event:    BrokerAppUp,
+	})
+
+	defer app.broker.Publish(BrokerMessage{
+		AppID:    app.ID(),
+		Event:    BrokerAppDown,
+	})
 
 	for {
 		select {
@@ -120,8 +140,8 @@ func (app *AppServer) Run(ctx context.Context) {
 	defer func() {
 		<-app.starter
 	}()
-	app.runBroker(ctx)
 
+	go app.runBrokerEventLoop(ctx)
 	cleaner := time.NewTicker(app.cleanInterval)
 	for {
 		select {

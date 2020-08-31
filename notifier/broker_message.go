@@ -2,7 +2,6 @@ package notifier
 
 import (
 	events "github.com/RomanIschenko/notify/event_pubsub"
-	"time"
 )
 
 type BrokerMessage struct {
@@ -10,5 +9,5 @@ type BrokerMessage struct {
 	AppID    string
 	BrokerID string
 	Event    events.EventType
-	Time     time.Time
+	Time     int64
 }
