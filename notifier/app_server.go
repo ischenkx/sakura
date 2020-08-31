@@ -1,62 +1,59 @@
-package notify
+package notifier
 
 import (
 	"context"
 	"errors"
-	"github.com/RomanIschenko/notify/broker"
-	"github.com/RomanIschenko/notify/events"
+	"github.com/RomanIschenko/notify"
+	"github.com/RomanIschenko/notify/options"
 	"io"
 	"io/ioutil"
 	"time"
 )
 
-type DataHandler func(client *Client, r io.Reader) error
+type DataHandler func(client *notify.Client, r io.Reader) error
 
 type AppServer struct {
 	auth          Auth
-	broker        broker.Broker
+	broker        Broker
 	cleanInterval time.Duration
-	dataHandler	  DataHandler
+	dataHandler   DataHandler
 	starter       chan struct{}
-	*App
+	*notify.App
 }
 
-func (app *AppServer) DisconnectClient(client *Client) {
-	app.pubsub.DisconnectClient(client)
-	app.events.Publish(events.Event{
-		Data: client.id, Type: Disconnect,
-	})
+func (app *AppServer) DisconnectClient(client *notify.Client) {
+	app.DisconnectClient(client)
 }
 
 //Connect takes two arguments: data and transport.
 //If ServerApp has Auth then data is passed to Auth.Verify
 //and gets client's info from there, else Connect will try to
 //convert data to ClientInfo.
-func (app *AppServer) Connect(data interface{}, transport Transport) (*Client, error) {
+func (app *AppServer) Connect(data interface{}, transport notify.Transport) (*notify.Client, error) {
 	if transport == nil || data == nil {
 		return nil, errors.New("invalid data or transport")
 	}
 
 	var (
-		clientInfo ClientInfo
-		ok bool
+		clientInfo notify.ClientInfo
+		ok         bool
 	)
 
 	if app.auth != nil {
 		clientInfo, ok = app.auth.Verify(data)
 	} else {
-		clientInfo, ok = data.(ClientInfo)
+		clientInfo, ok = data.(notify.ClientInfo)
 	}
 	if !ok {
 		return nil, errors.New("failed to get client info")
 	}
-	if clientInfo.AppID != app.id {
+	if clientInfo.AppID != app.ID() {
 		return nil, errors.New("wrong app")
 	}
-	return app.connect(clientInfo, transport)
+	return app.App.Connect(clientInfo, transport)
 }
 
-func (app *AppServer) Handle(client *Client, r io.Reader) error {
+func (app *AppServer) Handle(client *notify.Client, r io.Reader) error {
 	if client == nil {
 		return errors.New("client is nil")
 	}
@@ -77,36 +74,39 @@ func (app *AppServer) runBroker(ctx context.Context) {
 	brokerSub := app.broker.Subscribe()
 	defer brokerSub.Close()
 
-	subscription := app.events.Subscribe()
+	subscription := app.Events().Subscribe()
 	defer subscription.Close()
 
 	for {
 		select {
 		case appEvent := <-subscription.Channel():
 			switch appEvent.Type {
-			case Join, Leave, Send:
-				app.broker.Publish(broker.Message{
+			case notify.JoinEvent, notify.LeaveEvent, notify.SendEvent:
+				app.broker.Publish(BrokerMessage{
 					Data:     appEvent.Data,
-					AppID:    app.id,
+					AppID:    app.ID(),
 					Event:    appEvent.Type,
 				})
 			}
 		case mes := <-brokerSub.Channel():
-			if mes.AppID != app.id {
+			if mes.AppID != app.ID() {
 				continue
 			}
 			switch mes.Event {
-			case Send:
-				if opts, ok := mes.Data.(SendOptions); ok {
-					go app.send(opts)
+			case notify.SendEvent:
+				if opts, ok := mes.Data.(options.Send); ok {
+					opts.Event = BrokerSend
+					go app.Send(opts)
 				}
-			case Join:
-				if opts, ok := mes.Data.(JoinOptions); ok {
-					go app.join(opts)
+			case notify.JoinEvent:
+				if opts, ok := mes.Data.(options.Join); ok {
+					opts.Event = BrokerJoin
+					go app.Join(opts)
 				}
-			case Leave:
-				if opts, ok := mes.Data.(LeaveOptions); ok {
-					go app.leave(opts)
+			case notify.LeaveEvent:
+				if opts, ok := mes.Data.(options.Leave); ok {
+					opts.Event = BrokerLeave
+					go app.Leave(opts)
 				}
 			}
 		case <-ctx.Done():
@@ -133,7 +133,7 @@ func (app *AppServer) Run(ctx context.Context) {
 	}
 }
 
-func NewAppServer(app *App, config ServerConfig) *AppServer {
+func NewAppServer(app *notify.App, config Config) *AppServer {
 	return &AppServer{
 		auth:          config.Auth,
 		broker:        config.Broker,

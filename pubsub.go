@@ -3,6 +3,7 @@ package notify
 import (
 	"errors"
 	"fmt"
+	"github.com/RomanIschenko/notify/options"
 	"sync"
 	"time"
 )
@@ -139,7 +140,7 @@ func (pubsub *PubSub) DisconnectClient(client *Client) {
 }
 
 // Join adds clients to specified channels
-func (pubsub *PubSub) Join(opts JoinOptions) {
+func (pubsub *PubSub) Join(opts options.Join) {
 	clients := make([]string, len(opts.Clients))
 	copy(clients, opts.Clients)
 
@@ -191,7 +192,7 @@ func (pubsub *PubSub) Join(opts JoinOptions) {
 }
 
 // Leave deletes clients from specified channels
-func (pubsub *PubSub) Leave(opts LeaveOptions) {
+func (pubsub *PubSub) Leave(opts options.Leave) {
 	if !opts.All && len(opts.Channels) == 0 {
 		return
 	}
@@ -248,7 +249,7 @@ func (pubsub *PubSub) Leave(opts LeaveOptions) {
 }
 
 // Send sends Message to channels and clients
-func (pubsub *PubSub) Send(opts SendOptions) {
+func (pubsub *PubSub) Send(opts options.Send) {
 	clients := make([]*Client, 0, len(opts.Clients)+len(opts.Users))
 	channels := make([]*Channel, 0, len(opts.Channels))
 

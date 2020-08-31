@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/RomanIschenko/notify/events"
+	events "github.com/RomanIschenko/notify/events_pubsub"
+	"github.com/RomanIschenko/notify/options"
 	"github.com/google/uuid"
 	"log"
 	"time"
@@ -25,17 +26,19 @@ func (app *App) generateClientID() string {
 	return fmt.Sprintf("%s-%s", app.id, uuid.New().String())
 }
 
-func (app *App) identifyMessage(opts MessageOptions) SendOptions {
+func (app *App) identifyMessage(opts options.MessageSend) options.Send {
 	mes := Message{
 		Data: opts.Data,
 		ID:   fmt.Sprintf("%s-%s", app.id, uuid.New().String()),
 	}
 
-	return SendOptions{
-		opts.Users,
-		opts.Clients,
-		opts.Channels,
-		mes,
+	return options.Send{
+		Users:        opts.Users,
+		Clients:      opts.Clients,
+		Channels:     opts.Channels,
+		ToBeStored:   opts.ToBeStored,
+		Message:      mes,
+		EventOptions: options.EventOptions{Event: opts.Event},
 	}
 }
 
@@ -47,15 +50,15 @@ func (app *App) Events() *events.Pubsub {
 	return app.events
 }
 
-func (app *App) send(opts SendOptions) {
+func (app *App) send(opts options.Send) {
 	app.pubsub.Send(opts)
 }
 
-func (app *App) join(opts JoinOptions) {
+func (app *App) join(opts options.Join) {
 	app.pubsub.Join(opts)
 }
 
-func (app *App) leave(opts LeaveOptions) {
+func (app *App) leave(opts options.Leave) {
 	app.pubsub.Leave(opts)
 }
 
@@ -79,35 +82,58 @@ func (app *App) Clean(ctx context.Context) {
 	}
 }
 
-func (app *App) Send(mes MessageOptions) {
-	opts := app.identifyMessage(mes)
-	app.send(opts)
+func (app *App) Send(opts options.Send) {
+	if opts.Event == "" {
+		opts.Event = SendEvent
+	}
+	app.pubsub.Send(opts)
 	app.events.Publish(events.Event{
 		Data: opts,
-		Type: Send,
+		Type: opts.Event,
 	})
-	if app.messages != nil {
+	if app.messages != nil && opts.ToBeStored {
 		app.messages.Store(app.id, opts.Message)
 	}
 }
 
-func (app *App) Join(opts JoinOptions) {
+func (app *App) SendMessage(mes options.MessageSend) {
+	if mes.Event == "" {
+		mes.Event = SendEvent
+	}
+	opts := app.identifyMessage(mes)
+	app.send(opts)
+	app.events.Publish(events.Event{
+		Data: opts,
+		Type: opts.Event,
+	})
+	if app.messages != nil && opts.ToBeStored {
+		app.messages.Store(app.id, opts.Message)
+	}
+}
+
+func (app *App) Join(opts options.Join) {
+	if opts.Event == "" {
+		opts.Event = JoinEvent
+	}
 	app.join(opts)
 	app.events.Publish(events.Event{
 		Data: opts,
-		Type: Join,
+		Type: opts.Event,
 	})
 }
 
-func (app *App) Leave(opts LeaveOptions) {
+func (app *App) Leave(opts options.Leave) {
+	if opts.Event == "" {
+		opts.Event = LeaveEvent
+	}
 	app.leave(opts)
 	app.events.Publish(events.Event{
 		Data: opts,
-		Type: Leave,
+		Type: opts.Event,
 	})
 }
 
-func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
+func (app *App) Connect(info ClientInfo, transport Transport) (*Client, error) {
 	if transport == nil {
 		return nil, IncorrectTransportErr
 	}
@@ -118,17 +144,28 @@ func (app *App) connect(info ClientInfo, transport Transport) (*Client, error) {
 	if err == nil {
 		app.events.Publish(events.Event{
 			Data: client,
-			Type: Connect,
+			Type: ConnectEvent,
 		})
 	}
 	return client, err
+}
+
+func (app *App) DisconnectClient(client *Client) {
+	if client == nil {
+		return
+	}
+	app.pubsub.DisconnectClient(client)
+	app.events.Publish(events.Event{
+		Data: client.id,
+		Type: DisconnectEvent,
+	})
 }
 
 func (app *App) Disconnect(clientId string) {
 	app.pubsub.Disconnect(clientId)
 	app.events.Publish(events.Event{
 		Data: clientId,
-		Type: Disconnect,
+		Type: DisconnectEvent,
 	})
 }
 

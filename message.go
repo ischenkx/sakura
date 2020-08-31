@@ -5,9 +5,4 @@ type Message struct {
 	ID string
 }
 
-type MessageOptions struct {
-	Users []string
-	Clients []string
-	Channels []string
-	Data []byte
-}
+

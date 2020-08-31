@@ -1,8 +1,9 @@
-package notify
+package options
 
-type LeaveOptions struct {
+type Leave struct {
 	Users []string
 	Clients []string
 	Channels []string
 	All bool
+	EventOptions
 }

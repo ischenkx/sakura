@@ -1,4 +1,4 @@
-package events
+package eventsps
 
 type Subscription struct {
 	pubsub *Pubsub

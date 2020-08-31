@@ -1,7 +1,7 @@
 package notify
 
 import (
-	"fmt"
+	"github.com/RomanIschenko/notify/options"
 	"sync"
 )
 
@@ -19,10 +19,10 @@ type Client struct {
 
 	//it is used to save messages while client is closed
 	messageBuffer MessageBuffer
-	mu sync.Mutex
-	state ClientState
-	app *App
-	data sync.Map
+	mu            sync.Mutex
+	state         ClientState
+	app           *App
+	data          sync.Map
 }
 
 type clientSendResult int
@@ -93,9 +93,6 @@ func (client *Client) send(mes Message) clientSendResult {
 	}
 	if client.state == InactiveClient {
 		client.messageBuffer.Push(mes.ID)
-		if len(client.messageBuffer.buffer) % 1000 == 0 {
-			fmt.Println(len(client.messageBuffer.buffer))
-		}
 		return inactiveClientSend
 	}
 	client.transport.Send(mes)
@@ -103,7 +100,7 @@ func (client *Client) send(mes Message) clientSendResult {
 }
 
 func (client *Client) Send(data []byte) {
-	client.app.Send(MessageOptions{
+	client.app.SendMessage(options.MessageSend{
 		Clients:  []string{client.id},
 		Data:     data,
 	})
@@ -113,7 +110,7 @@ func (client *Client) Join(channels []string) {
 	if len(channels) == 0 {
 		return
 	}
-	client.app.Join(JoinOptions{
+	client.app.Join(options.Join{
 		Clients:  []string{client.id},
 		Channels: channels,
 	})
@@ -123,16 +120,10 @@ func (client *Client) Leave(channels []string, all bool) {
 	if len(channels) == 0 && !all {
 		return
 	}
-	if all {
-		client.app.Leave(LeaveOptions{
-			Clients: []string{client.id},
-			All: 	 true,
-		})
-		return
-	}
-	client.app.Leave(LeaveOptions{
-		Clients:  []string{client.id},
-		Channels: channels,
+	client.app.Leave(options.Leave{
+		Clients:      []string{client.id},
+		Channels:     channels,
+		All:          all,
 	})
 }
 

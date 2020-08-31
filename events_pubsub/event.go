@@ -1,4 +1,4 @@
-package events
+package eventsps
 
 type EventType string
 type Event struct {

@@ -1,11 +1,11 @@
-package broker
+package notifier
 
 import (
-	"github.com/RomanIschenko/notify/events"
+	events "github.com/RomanIschenko/notify/events_pubsub"
 	"time"
 )
 
-type Message struct {
+type BrokerMessage struct {
 	Data     interface{}
 	AppID    string
 	BrokerID string
