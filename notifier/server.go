@@ -9,7 +9,7 @@ import (
 type Server interface {
 	//first argument - data to be passed to auth or ClientInfo
 	//second - transport
-	Connect(interface{}, notify.Transport) (*notify.Client, error)
+	Connect(notify.ClientInfo, notify.Transport) (*notify.Client, error)
 	DisconnectClient(client *notify.Client)
 	//u pass client and reader, it sends it to data handler,
 	//if it returns non-nil error then client is to be deleted.

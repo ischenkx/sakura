@@ -13,44 +13,11 @@ import (
 type DataHandler func(client *notify.Client, r io.Reader) error
 
 type AppServer struct {
-	auth          	   Auth
 	broker         	   Broker
 	cleanInterval 	   time.Duration
 	dataHandler   	   DataHandler
 	starter     	   chan struct{}
 	*notify.App
-}
-
-func (app *AppServer) DisconnectClient(client *notify.Client) {
-	app.DisconnectClient(client)
-}
-
-//Connect takes two arguments: data and transport.
-//If ServerApp has Auth then data is passed to Auth.Verify
-//and gets client's info from there, else Connect will try to
-//convert data to ClientInfo.
-func (app *AppServer) Connect(data interface{}, transport notify.Transport) (*notify.Client, error) {
-	if transport == nil || data == nil {
-		return nil, errors.New("invalid data or transport")
-	}
-
-	var (
-		clientInfo notify.ClientInfo
-		ok         bool
-	)
-
-	if app.auth != nil {
-		clientInfo, ok = app.auth.Verify(data)
-	} else {
-		clientInfo, ok = data.(notify.ClientInfo)
-	}
-	if !ok {
-		return nil, errors.New("failed to get client info")
-	}
-	if clientInfo.AppID != app.ID() {
-		return nil, errors.New("wrong app")
-	}
-	return app.App.Connect(clientInfo, transport)
 }
 
 func (app *AppServer) Handle(client *notify.Client, r io.Reader) error {
@@ -155,7 +122,6 @@ func (app *AppServer) Run(ctx context.Context) {
 
 func NewAppServer(app *notify.App, config Config) *AppServer {
 	return &AppServer{
-		auth:          config.Auth,
 		broker:        config.Broker,
 		cleanInterval: config.CleanInterval,
 		App:           app,
