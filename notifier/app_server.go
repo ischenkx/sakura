@@ -123,6 +123,7 @@ func NewAppServer(app *notify.App, config Config) *AppServer {
 		broker:        config.Broker,
 		cleanInterval: config.CleanInterval,
 		App:           app,
+		dataHandler:   config.DataHandler,
 		starter: 	   make(chan struct{}, 1),
 	}
 }
