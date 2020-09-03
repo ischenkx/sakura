@@ -126,7 +126,7 @@ func (pubsub *PubSub) DisconnectClient(client *Client) {
 	}
 
 	pubsub.mu.Lock()
-	defer pubsub.mu.Lock()
+	defer pubsub.mu.Unlock()
 	realClient := pubsub.clients[client.id]
 	if realClient != client {
 		return
