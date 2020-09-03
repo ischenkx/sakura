@@ -2,7 +2,6 @@ package notify
 
 import (
 	"github.com/RomanIschenko/notify/message"
-	"github.com/RomanIschenko/notify/options"
 	"sync"
 )
 
@@ -101,7 +100,7 @@ func (client *Client) send(mes message.Message) clientSendResult {
 }
 
 func (client *Client) Send(data []byte) {
-	client.app.SendMessage(options.MessageSend{
+	client.app.SendMessage(MessageSend{
 		Clients:  []string{client.id},
 		Data:     data,
 	})
@@ -111,7 +110,7 @@ func (client *Client) Join(channels []string) {
 	if len(channels) == 0 {
 		return
 	}
-	client.app.Join(options.Join{
+	client.app.Join(Join{
 		Clients:  []string{client.id},
 		Channels: channels,
 	})
@@ -121,7 +120,7 @@ func (client *Client) Leave(channels []string, all bool) {
 	if len(channels) == 0 && !all {
 		return
 	}
-	client.app.Leave(options.Leave{
+	client.app.Leave(Leave{
 		Clients:      []string{client.id},
 		Channels:     channels,
 		All:          all,

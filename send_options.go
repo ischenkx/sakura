@@ -1,4 +1,4 @@
-package options
+package notify
 
 import (
 	"github.com/RomanIschenko/notify/message"

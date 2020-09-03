@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RomanIschenko/notify/message"
-	"github.com/RomanIschenko/notify/options"
 	"sync"
 	"time"
 )
@@ -137,7 +136,7 @@ func (pubsub *PubSub) DisconnectClient(client *Client) {
 }
 
 // Join adds clients to specified channels
-func (pubsub *PubSub) Join(opts options.Join) {
+func (pubsub *PubSub) Join(opts Join) {
 	clients := make([]string, len(opts.Clients))
 	copy(clients, opts.Clients)
 
@@ -189,7 +188,7 @@ func (pubsub *PubSub) Join(opts options.Join) {
 }
 
 // Leave deletes clients from specified channels
-func (pubsub *PubSub) Leave(opts options.Leave) {
+func (pubsub *PubSub) Leave(opts Leave) {
 	if !opts.All && len(opts.Channels) == 0 {
 		return
 	}
@@ -246,7 +245,7 @@ func (pubsub *PubSub) Leave(opts options.Leave) {
 }
 
 // Send sends Message to channels and clients
-func (pubsub *PubSub) Send(opts options.Send) {
+func (pubsub *PubSub) Send(opts Send) {
 	clients := make([]*Client, 0, len(opts.Clients)+len(opts.Users))
 	channels := make([]*Channel, 0, len(opts.Channels))
 

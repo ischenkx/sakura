@@ -1,13 +1,11 @@
 package notifier
 
-import events "github.com/RomanIschenko/notify/event_pubsub"
-
 const (
-	BrokerSend events.EventType = "broker_send"
-	BrokerJoin					= "broker_join"
-	BrokerLeave 				= "broker_leave"
-	BrokerAppUp					= "app_up"
-	BrokerAppDown				= "app_down"
-	BrokerInstanceUp			= "broker_instance_up"
-	BrokerInstanceDown			= "broker_instance_down"
+	BrokerSendEvent string = "broker_send"
+	BrokerJoinEvent					 = "broker_join"
+	BrokerLeaveEvent 				 = "broker_leave"
+	BrokerAppUpEvent				 = "app_up"
+	BrokerAppDownEvent				 = "app_down"
+	BrokerInstanceUpEvent			 = "broker_instance_up"
+	BrokerInstanceDownEvent			 = "broker_instance_down"
 )

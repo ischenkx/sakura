@@ -6,7 +6,6 @@ import (
 	"fmt"
 	events "github.com/RomanIschenko/notify/event_pubsub"
 	"github.com/RomanIschenko/notify/message"
-	"github.com/RomanIschenko/notify/options"
 	"github.com/google/uuid"
 	"log"
 	"time"
@@ -27,19 +26,19 @@ func (app *App) generateClientID() string {
 	return fmt.Sprintf("%s-%s", app.id, uuid.New().String())
 }
 
-func (app *App) identifyMessage(opts options.MessageSend) options.Send {
+func (app *App) identifyMessage(opts MessageSend) Send {
 	mes := message.Message{
 		Data: opts.Data,
 		ID:   fmt.Sprintf("%s-%s", app.id, uuid.New().String()),
 	}
 
-	return options.Send{
+	return Send{
 		Users:        opts.Users,
 		Clients:      opts.Clients,
 		Channels:     opts.Channels,
 		ToBeStored:   opts.ToBeStored,
 		Message:      mes,
-		EventOptions: options.EventOptions{Event: opts.Event},
+		EventOptions: EventOptions{Event: opts.Event},
 	}
 }
 
@@ -51,15 +50,15 @@ func (app *App) Events() *events.Pubsub {
 	return app.events
 }
 
-func (app *App) send(opts options.Send) {
+func (app *App) send(opts Send) {
 	app.pubsub.Send(opts)
 }
 
-func (app *App) join(opts options.Join) {
+func (app *App) join(opts Join) {
 	app.pubsub.Join(opts)
 }
 
-func (app *App) leave(opts options.Leave) {
+func (app *App) leave(opts Leave) {
 	app.pubsub.Leave(opts)
 }
 
@@ -83,7 +82,7 @@ func (app *App) Clean(ctx context.Context) {
 	}
 }
 
-func (app *App) Send(opts options.Send) {
+func (app *App) Send(opts Send) {
 	if opts.Event == "" {
 		opts.Event = SendEvent
 	}
@@ -97,7 +96,7 @@ func (app *App) Send(opts options.Send) {
 	}
 }
 
-func (app *App) SendMessage(mes options.MessageSend) {
+func (app *App) SendMessage(mes MessageSend) {
 	if mes.Event == "" {
 		mes.Event = SendEvent
 	}
@@ -112,7 +111,7 @@ func (app *App) SendMessage(mes options.MessageSend) {
 	}
 }
 
-func (app *App) Join(opts options.Join) {
+func (app *App) Join(opts Join) {
 	if opts.Event == "" {
 		opts.Event = JoinEvent
 	}
@@ -123,7 +122,7 @@ func (app *App) Join(opts options.Join) {
 	})
 }
 
-func (app *App) Leave(opts options.Leave) {
+func (app *App) Leave(opts Leave) {
 	if opts.Event == "" {
 		opts.Event = LeaveEvent
 	}

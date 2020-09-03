@@ -1,4 +1,4 @@
-package options
+package notify
 
 type Leave struct {
 	Users []string

@@ -1,4 +1,4 @@
-package options
+package notify
 
 type Join struct {
 	Users 	 []string

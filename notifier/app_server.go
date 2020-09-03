@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/options"
 	"io"
 	"io/ioutil"
 	"time"
@@ -46,22 +45,22 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 	app.broker.Publish(BrokerMessage{
 		Data:     ctx.Value("instanceUpArg"),
 		AppID:    app.ID(),
-		Event:    BrokerInstanceUp,
+		Event:    BrokerInstanceUpEvent,
 	})
 
 	defer app.broker.Publish(BrokerMessage{
 		AppID:    app.ID(),
-		Event:    BrokerInstanceDown,
+		Event:    BrokerInstanceDownEvent,
 	})
 
 	app.broker.Publish(BrokerMessage{
 		AppID:    app.ID(),
-		Event:    BrokerAppUp,
+		Event:    BrokerAppUpEvent,
 	})
 
 	defer app.broker.Publish(BrokerMessage{
 		AppID:    app.ID(),
-		Event:    BrokerAppDown,
+		Event:    BrokerAppDownEvent,
 	})
 
 	for {
@@ -81,18 +80,18 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 			}
 			switch mes.Event {
 			case notify.SendEvent:
-				if opts, ok := mes.Data.(options.Send); ok {
-					opts.Event = BrokerSend
+				if opts, ok := mes.Data.(notify.Send); ok {
+					opts.Event = BrokerSendEvent
 					go app.Send(opts)
 				}
 			case notify.JoinEvent:
-				if opts, ok := mes.Data.(options.Join); ok {
-					opts.Event = BrokerJoin
+				if opts, ok := mes.Data.(notify.Join); ok {
+					opts.Event = BrokerJoinEvent
 					go app.Join(opts)
 				}
 			case notify.LeaveEvent:
-				if opts, ok := mes.Data.(options.Leave); ok {
-					opts.Event = BrokerLeave
+				if opts, ok := mes.Data.(notify.Leave); ok {
+					opts.Event = BrokerLeaveEvent
 					go app.Leave(opts)
 				}
 			}
@@ -107,7 +106,6 @@ func (app *AppServer) Run(ctx context.Context) {
 	defer func() {
 		<-app.starter
 	}()
-
 	go app.runBrokerEventLoop(ctx)
 	cleaner := time.NewTicker(app.cleanInterval)
 	for {
