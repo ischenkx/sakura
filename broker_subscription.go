@@ -1,4 +1,4 @@
-package notifier
+package notify
 
 type BrokerSubscription interface {
 	Close()

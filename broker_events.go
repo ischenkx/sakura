@@ -1,4 +1,4 @@
-package notifier
+package notify
 
 const (
 	BrokerSendEvent string 	= "broker_send"

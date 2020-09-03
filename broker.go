@@ -1,4 +1,4 @@
-package notifier
+package notify
 
 type Broker interface {
 	Subscribe() BrokerSubscription

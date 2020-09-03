@@ -1,25 +1,22 @@
-package notifier
+package notify
 
 import (
 	"context"
 	"errors"
-	"github.com/RomanIschenko/notify"
 	"io"
 	"io/ioutil"
 	"time"
 )
 
-type DataHandler func(client *notify.Client, r io.Reader) error
-
-type AppServer struct {
-	broker         	   Broker
-	cleanInterval 	   time.Duration
-	dataHandler   	   DataHandler
-	starter     	   chan struct{}
-	*notify.App
+type appServer struct {
+	broker        Broker
+	cleanInterval time.Duration
+	dataHandler   func(client *Client, r io.Reader) error
+	starter       chan struct{}
+	*App
 }
 
-func (app *AppServer) Handle(client *notify.Client, r io.Reader) error {
+func (app *appServer) Handle(client *Client, r io.Reader) error {
 	if client == nil {
 		return errors.New("client is nil")
 	}
@@ -27,13 +24,13 @@ func (app *AppServer) Handle(client *notify.Client, r io.Reader) error {
 		return nil
 	}
 	if app.dataHandler == nil {
-		ioutil.ReadAll(r)
-		return nil
+		_, err := ioutil.ReadAll(r)
+		return err
 	}
 	return app.dataHandler(client, r)
 }
 
-func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
+func (app *appServer) runBrokerEventLoop(ctx context.Context) {
 	if app.broker == nil {
 		return
 	}
@@ -43,31 +40,31 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 	defer subscription.Close()
 
 	app.broker.Publish(BrokerMessage{
-		Data:     ctx.Value("instanceUpArg"),
-		AppID:    app.ID(),
-		Event:    BrokerInstanceUpEvent,
+		Data:  ctx.Value("instanceUpArg"),
+		AppID: app.ID(),
+		Event: BrokerInstanceUpEvent,
 	})
 
 	defer app.broker.Publish(BrokerMessage{
-		AppID:    app.ID(),
-		Event:    BrokerInstanceDownEvent,
+		AppID: app.ID(),
+		Event: BrokerInstanceDownEvent,
 	})
 
 	app.broker.Publish(BrokerMessage{
-		AppID:    app.ID(),
-		Event:    BrokerAppUpEvent,
+		AppID: app.ID(),
+		Event: BrokerAppUpEvent,
 	})
 
 	defer app.broker.Publish(BrokerMessage{
-		AppID:    app.ID(),
-		Event:    BrokerAppDownEvent,
+		AppID: app.ID(),
+		Event: BrokerAppDownEvent,
 	})
 
 	for {
 		select {
 		case appEvent := <-subscription.Channel():
 			switch appEvent.Type {
-			case notify.JoinEvent, notify.LeaveEvent, notify.SendEvent:
+			case JoinEvent, LeaveEvent, SendEvent:
 				app.broker.Publish(BrokerMessage{
 					Data:     appEvent.Data,
 					AppID:    app.ID(),
@@ -79,18 +76,18 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 				continue
 			}
 			switch mes.Event {
-			case notify.SendEvent:
-				if opts, ok := mes.Data.(notify.SendOptions); ok {
+			case SendEvent:
+				if opts, ok := mes.Data.(SendOptions); ok {
 					opts.Event = BrokerSendEvent
 					go app.Send(opts)
 				}
-			case notify.JoinEvent:
-				if opts, ok := mes.Data.(notify.JoinOptions); ok {
+			case JoinEvent:
+				if opts, ok := mes.Data.(JoinOptions); ok {
 					opts.Event = BrokerJoinEvent
 					go app.Join(opts)
 				}
-			case notify.LeaveEvent:
-				if opts, ok := mes.Data.(notify.LeaveOptions); ok {
+			case LeaveEvent:
+				if opts, ok := mes.Data.(LeaveOptions); ok {
 					opts.Event = BrokerLeaveEvent
 					go app.Leave(opts)
 				}
@@ -101,7 +98,7 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 	}
 }
 
-func (app *AppServer) Run(ctx context.Context) {
+func (app *appServer) Run(ctx context.Context) {
 	app.starter <- struct{}{}
 	defer func() {
 		<-app.starter
@@ -115,15 +112,5 @@ func (app *AppServer) Run(ctx context.Context) {
 		case <-cleaner.C:
 			go app.Clean(ctx)
 		}
-	}
-}
-
-func NewAppServer(app *notify.App, config Config) *AppServer {
-	return &AppServer{
-		broker:        config.Broker,
-		cleanInterval: config.CleanInterval,
-		App:           app,
-		dataHandler:   config.DataHandler,
-		starter: 	   make(chan struct{}, 1),
 	}
 }

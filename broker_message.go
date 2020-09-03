@@ -1,4 +1,4 @@
-package notifier
+package notify
 
 type BrokerMessage struct {
 	Data     interface{}

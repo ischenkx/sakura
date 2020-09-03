@@ -1,16 +1,8 @@
-package eventsps
+package eventps
 
 import (
 	"sync"
 )
-//todo
-//make listener non-blocking
-//CHAN - listening channel
-//BUFFER_SIZE - size of channel buffer
-//if length of CHAN equals BUFFER_SIZE then create a proxy channel,
-//store it somewhere, start new goroutine and read from proxy to
-//CHAN in it. Later, if length of CHAN is less or equal than a half of BUFFER_SIZE
-//then we can close proxy and write data directly to CHAN
 
 const BufferSize = 512
 

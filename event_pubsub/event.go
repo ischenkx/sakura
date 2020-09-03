@@ -1,4 +1,4 @@
-package eventsps
+package eventps
 
 type Event struct {
 	Data interface{}

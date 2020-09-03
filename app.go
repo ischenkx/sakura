@@ -169,6 +169,16 @@ func (app *App) Disconnect(clientId string) {
 	})
 }
 
+func (app *App) Server(config ServerConfig) Server {
+	return &appServer{
+		broker:        config.Broker,
+		cleanInterval: config.CleanInterval,
+		dataHandler:   config.DataHandler,
+		starter:       make(chan struct{}, 1),
+		App:           app,
+	}
+}
+
 func NewApp(config AppConfig) *App {
 	app := &App{
 		id:       config.ID,
