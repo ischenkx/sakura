@@ -80,17 +80,17 @@ func (app *AppServer) runBrokerEventLoop(ctx context.Context) {
 			}
 			switch mes.Event {
 			case notify.SendEvent:
-				if opts, ok := mes.Data.(notify.Send); ok {
+				if opts, ok := mes.Data.(notify.SendOptions); ok {
 					opts.Event = BrokerSendEvent
 					go app.Send(opts)
 				}
 			case notify.JoinEvent:
-				if opts, ok := mes.Data.(notify.Join); ok {
+				if opts, ok := mes.Data.(notify.JoinOptions); ok {
 					opts.Event = BrokerJoinEvent
 					go app.Join(opts)
 				}
 			case notify.LeaveEvent:
-				if opts, ok := mes.Data.(notify.Leave); ok {
+				if opts, ok := mes.Data.(notify.LeaveOptions); ok {
 					opts.Event = BrokerLeaveEvent
 					go app.Leave(opts)
 				}

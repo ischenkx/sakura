@@ -4,7 +4,7 @@ import (
 	"github.com/RomanIschenko/notify/message"
 )
 
-type Send struct {
+type SendOptions struct {
 	Users 	   []string
 	Clients    []string
 	Channels   []string

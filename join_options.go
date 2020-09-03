@@ -1,6 +1,6 @@
 package notify
 
-type Join struct {
+type JoinOptions struct {
 	Users 	 []string
 	Clients  []string
 	Channels []string

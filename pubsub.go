@@ -136,7 +136,7 @@ func (pubsub *PubSub) DisconnectClient(client *Client) {
 }
 
 // Join adds clients to specified channels
-func (pubsub *PubSub) Join(opts Join) {
+func (pubsub *PubSub) Join(opts JoinOptions) {
 	clients := make([]string, len(opts.Clients))
 	copy(clients, opts.Clients)
 
@@ -188,7 +188,7 @@ func (pubsub *PubSub) Join(opts Join) {
 }
 
 // Leave deletes clients from specified channels
-func (pubsub *PubSub) Leave(opts Leave) {
+func (pubsub *PubSub) Leave(opts LeaveOptions) {
 	if !opts.All && len(opts.Channels) == 0 {
 		return
 	}
@@ -245,7 +245,7 @@ func (pubsub *PubSub) Leave(opts Leave) {
 }
 
 // Send sends Message to channels and clients
-func (pubsub *PubSub) Send(opts Send) {
+func (pubsub *PubSub) Send(opts SendOptions) {
 	clients := make([]*Client, 0, len(opts.Clients)+len(opts.Users))
 	channels := make([]*Channel, 0, len(opts.Channels))
 

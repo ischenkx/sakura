@@ -26,13 +26,13 @@ func (app *App) generateClientID() string {
 	return fmt.Sprintf("%s-%s", app.id, uuid.New().String())
 }
 
-func (app *App) identifyMessage(opts MessageSend) Send {
+func (app *App) identifyMessage(opts MessageSendOptions) SendOptions {
 	mes := message.Message{
 		Data: opts.Data,
 		ID:   fmt.Sprintf("%s-%s", app.id, uuid.New().String()),
 	}
 
-	return Send{
+	return SendOptions{
 		Users:        opts.Users,
 		Clients:      opts.Clients,
 		Channels:     opts.Channels,
@@ -50,15 +50,15 @@ func (app *App) Events() *events.Pubsub {
 	return app.events
 }
 
-func (app *App) send(opts Send) {
+func (app *App) send(opts SendOptions) {
 	app.pubsub.Send(opts)
 }
 
-func (app *App) join(opts Join) {
+func (app *App) join(opts JoinOptions) {
 	app.pubsub.Join(opts)
 }
 
-func (app *App) leave(opts Leave) {
+func (app *App) leave(opts LeaveOptions) {
 	app.pubsub.Leave(opts)
 }
 
@@ -82,7 +82,7 @@ func (app *App) Clean(ctx context.Context) {
 	}
 }
 
-func (app *App) Send(opts Send) {
+func (app *App) Send(opts SendOptions) {
 	if opts.Event == "" {
 		opts.Event = SendEvent
 	}
@@ -96,7 +96,7 @@ func (app *App) Send(opts Send) {
 	}
 }
 
-func (app *App) SendMessage(mes MessageSend) {
+func (app *App) SendMessage(mes MessageSendOptions) {
 	if mes.Event == "" {
 		mes.Event = SendEvent
 	}
@@ -111,7 +111,7 @@ func (app *App) SendMessage(mes MessageSend) {
 	}
 }
 
-func (app *App) Join(opts Join) {
+func (app *App) Join(opts JoinOptions) {
 	if opts.Event == "" {
 		opts.Event = JoinEvent
 	}
@@ -122,7 +122,7 @@ func (app *App) Join(opts Join) {
 	})
 }
 
-func (app *App) Leave(opts Leave) {
+func (app *App) Leave(opts LeaveOptions) {
 	if opts.Event == "" {
 		opts.Event = LeaveEvent
 	}

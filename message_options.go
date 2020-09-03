@@ -1,6 +1,6 @@
 package notify
 
-type MessageSend struct {
+type MessageSendOptions struct {
 	Users []string
 	Clients []string
 	Channels []string

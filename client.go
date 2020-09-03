@@ -100,7 +100,7 @@ func (client *Client) send(mes message.Message) clientSendResult {
 }
 
 func (client *Client) Send(data []byte) {
-	client.app.SendMessage(MessageSend{
+	client.app.SendMessage(MessageSendOptions{
 		Clients:  []string{client.id},
 		Data:     data,
 	})
@@ -110,7 +110,7 @@ func (client *Client) Join(channels []string) {
 	if len(channels) == 0 {
 		return
 	}
-	client.app.Join(Join{
+	client.app.Join(JoinOptions{
 		Clients:  []string{client.id},
 		Channels: channels,
 	})
@@ -120,7 +120,7 @@ func (client *Client) Leave(channels []string, all bool) {
 	if len(channels) == 0 && !all {
 		return
 	}
-	client.app.Leave(Leave{
+	client.app.Leave(LeaveOptions{
 		Clients:      []string{client.id},
 		Channels:     channels,
 		All:          all,
