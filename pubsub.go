@@ -108,8 +108,8 @@ func (pubsub *PubSub) Disconnect(id string) {
 		return
 	}
 
-	pubsub.mu.RLock()
-	defer pubsub.mu.RUnlock()
+	pubsub.mu.Lock()
+	defer pubsub.mu.Unlock()
 	client, ok := pubsub.clients[id]
 	if !ok {
 		return
