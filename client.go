@@ -73,7 +73,7 @@ func (client *Client) tryActivate(t Transport) (bool, []string) {
 	}
 	client.mu.Lock()
 	defer client.mu.Unlock()
-	if client.state != InactiveClient {
+	if client.state == InvalidClient {
 		return false, nil
 	}
 	if client.transport != nil {
