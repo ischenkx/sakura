@@ -77,9 +77,6 @@ func (app *App) Clean(ctx context.Context) {
 	ids := app.pubsub.Clean()
 	elapsed := time.Since(start)
 	log.Printf("Cleaning:\n\tDeleted: %v\n\tTime: %v\n", len(ids), elapsed)
-	if app.messages != nil {
-		app.messages.Clean()
-	}
 }
 
 func (app *App) Send(opts SendOptions) {
