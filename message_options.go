@@ -6,5 +6,5 @@ type MessageSendOptions struct {
 	Channels []string
 	Data []byte
 	ToBeStored bool
-	EventOptions
+	Event string
 }

@@ -1,7 +1,9 @@
 package notify
 
+import "io"
+
 type Broker interface {
-	Subscribe() BrokerSubscription
-	Publish(BrokerMessage) error
+	Handle(func(BrokerEvent)) io.Closer
+	Emit(BrokerEvent)
 	ID() string
 }

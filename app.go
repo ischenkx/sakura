@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	events "github.com/RomanIschenko/notify/event_pubsub"
+	events "github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/notify/message"
 	"github.com/google/uuid"
 	"log"
@@ -17,7 +17,7 @@ var (
 
 type App struct {
 	id       string
-	events   *events.Pubsub
+	events   *events.Source
 	pubsub   *PubSub
 	messages message.Storage
 }
@@ -33,12 +33,12 @@ func (app *App) identifyMessage(opts MessageSendOptions) SendOptions {
 	}
 
 	return SendOptions{
-		Users:        opts.Users,
-		Clients:      opts.Clients,
-		Channels:     opts.Channels,
-		ToBeStored:   opts.ToBeStored,
-		Message:      mes,
-		EventOptions: EventOptions{Event: opts.Event},
+		Users:      opts.Users,
+		Clients:    opts.Clients,
+		Channels:   opts.Channels,
+		ToBeStored: opts.ToBeStored,
+		Message:    mes,
+		Event:   	opts.Event,
 	}
 }
 
@@ -46,7 +46,7 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Events() *events.Pubsub {
+func (app *App) Events() *events.Source {
 	return app.events
 }
 
@@ -84,7 +84,7 @@ func (app *App) Send(opts SendOptions) {
 		opts.Event = SendEvent
 	}
 	app.pubsub.Send(opts)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: opts,
 		Type: opts.Event,
 	})
@@ -99,7 +99,7 @@ func (app *App) SendMessage(mes MessageSendOptions) {
 	}
 	opts := app.identifyMessage(mes)
 	app.send(opts)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: opts,
 		Type: opts.Event,
 	})
@@ -113,7 +113,7 @@ func (app *App) Join(opts JoinOptions) {
 		opts.Event = JoinEvent
 	}
 	app.join(opts)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: opts,
 		Type: opts.Event,
 	})
@@ -124,7 +124,7 @@ func (app *App) Leave(opts LeaveOptions) {
 		opts.Event = LeaveEvent
 	}
 	app.leave(opts)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: opts,
 		Type: opts.Event,
 	})
@@ -139,7 +139,7 @@ func (app *App) Connect(info ClientInfo, transport Transport) (*Client, error) {
 	}
 	client, err := app.pubsub.Connect(info, transport)
 	if err == nil {
-		app.events.Publish(events.Event{
+		app.events.Emit(events.Event{
 			Data: client,
 			Type: ConnectEvent,
 		})
@@ -152,7 +152,7 @@ func (app *App) DisconnectClient(client *Client) {
 		return
 	}
 	app.pubsub.DisconnectClient(client)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: client.id,
 		Type: DisconnectEvent,
 	})
@@ -160,7 +160,7 @@ func (app *App) DisconnectClient(client *Client) {
 
 func (app *App) Disconnect(clientId string) {
 	app.pubsub.Disconnect(clientId)
-	app.events.Publish(events.Event{
+	app.events.Emit(events.Event{
 		Data: clientId,
 		Type: DisconnectEvent,
 	})
@@ -179,7 +179,7 @@ func (app *App) Server(config ServerConfig) Server {
 func NewApp(config AppConfig) *App {
 	app := &App{
 		id:       config.ID,
-		events:   events.NewPubsub(),
+		events:   events.NewSource(),
 		messages: config.Messages,
 	}
 	app.pubsub = newPubsub(app, config.PubSub)

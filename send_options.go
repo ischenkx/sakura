@@ -10,5 +10,5 @@ type SendOptions struct {
 	Channels   []string
 	ToBeStored bool
 	message.Message
-	EventOptions
+	Event string
 }

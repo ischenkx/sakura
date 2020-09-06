@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"errors"
+	"github.com/RomanIschenko/notify/events"
 	"io"
 	"io/ioutil"
 	"time"
@@ -34,68 +35,64 @@ func (app *appServer) runBrokerEventLoop(ctx context.Context) {
 	if app.broker == nil {
 		return
 	}
-	brokerSub := app.broker.Subscribe()
-	defer brokerSub.Close()
-	subscription := app.Events().Subscribe()
-	defer subscription.Close()
+	brokerHandlerCloser := app.broker.Handle(func(e BrokerEvent) {
+		if e.AppID != app.ID() {
+			return
+		}
+		switch e.Event {
+		case SendEvent:
+			if opts, ok := e.Data.(SendOptions); ok {
+				opts.Event = BrokerSendEvent
+				go app.Send(opts)
+			}
+		case JoinEvent:
+			if opts, ok := e.Data.(JoinOptions); ok {
+				opts.Event = BrokerJoinEvent
+				go app.Join(opts)
+			}
+		case LeaveEvent:
+			if opts, ok := e.Data.(LeaveOptions); ok {
+				opts.Event = BrokerLeaveEvent
+				go app.Leave(opts)
+			}
+		}
+	})
+	defer brokerHandlerCloser.Close()
 
-	app.broker.Publish(BrokerMessage{
+	appHandlerCloser := app.Events().Handle(func(e events.Event) {
+		switch e.Type {
+		case JoinEvent, LeaveEvent, SendEvent:
+			app.broker.Emit(BrokerEvent{
+				Data:     e.Data,
+				AppID:    app.ID(),
+				Event:    e.Type,
+			})
+		}
+	})
+	defer appHandlerCloser.Close()
+
+	app.broker.Emit(BrokerEvent{
 		Data:  ctx.Value("instanceUpArg"),
 		AppID: app.ID(),
 		Event: BrokerInstanceUpEvent,
 	})
 
-	defer app.broker.Publish(BrokerMessage{
+	defer app.broker.Emit(BrokerEvent{
 		AppID: app.ID(),
 		Event: BrokerInstanceDownEvent,
 	})
 
-	app.broker.Publish(BrokerMessage{
+	app.broker.Emit(BrokerEvent{
 		AppID: app.ID(),
 		Event: BrokerAppUpEvent,
 	})
 
-	defer app.broker.Publish(BrokerMessage{
+	defer app.broker.Emit(BrokerEvent{
 		AppID: app.ID(),
 		Event: BrokerAppDownEvent,
 	})
 
-	for {
-		select {
-		case appEvent := <-subscription.Channel():
-			switch appEvent.Type {
-			case JoinEvent, LeaveEvent, SendEvent:
-				app.broker.Publish(BrokerMessage{
-					Data:     appEvent.Data,
-					AppID:    app.ID(),
-					Event:    appEvent.Type,
-				})
-			}
-		case mes := <-brokerSub.Channel():
-			if mes.AppID != app.ID() {
-				continue
-			}
-			switch mes.Event {
-			case SendEvent:
-				if opts, ok := mes.Data.(SendOptions); ok {
-					opts.Event = BrokerSendEvent
-					go app.Send(opts)
-				}
-			case JoinEvent:
-				if opts, ok := mes.Data.(JoinOptions); ok {
-					opts.Event = BrokerJoinEvent
-					go app.Join(opts)
-				}
-			case LeaveEvent:
-				if opts, ok := mes.Data.(LeaveOptions); ok {
-					opts.Event = BrokerLeaveEvent
-					go app.Leave(opts)
-				}
-			}
-		case <-ctx.Done():
-			return
-		}
-	}
+	<-ctx.Done()
 }
 
 func (app *appServer) Run(ctx context.Context) {
@@ -103,8 +100,10 @@ func (app *appServer) Run(ctx context.Context) {
 	defer func() {
 		<-app.starter
 	}()
+
 	go app.runBrokerEventLoop(ctx)
 	cleaner := time.NewTicker(app.cleanInterval)
+
 	for {
 		select {
 		case <-ctx.Done():

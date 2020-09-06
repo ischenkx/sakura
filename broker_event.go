@@ -1,6 +1,6 @@
 package notify
 
-type BrokerMessage struct {
+type BrokerEvent struct {
 	Data     interface{}
 	AppID    string
 	BrokerID string

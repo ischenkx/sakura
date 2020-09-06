@@ -5,5 +5,5 @@ type LeaveOptions struct {
 	Clients []string
 	Channels []string
 	All bool
-	EventOptions
+	Event string
 }
