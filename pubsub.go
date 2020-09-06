@@ -2,7 +2,6 @@ package notify
 
 import (
 	"errors"
-	"fmt"
 	"github.com/RomanIschenko/notify/message"
 	"sync"
 	"time"
@@ -57,7 +56,6 @@ func (pubsub *PubSub) Connect(info ClientInfo, transport Transport) (*Client, er
 		pubsub.mu.Unlock()
 		delete(pubsub.inactiveClients, client.id)
 		//todo: figure out what to do with not found messages
-		fmt.Println("restoring...", buffer)
 		messages, _ := pubsub.app.loadMessages(buffer)
 		for i := 0; i < len(messages); i++ {
 			message := messages[i]
