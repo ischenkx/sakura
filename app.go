@@ -3,43 +3,25 @@ package notify
 import (
 	"context"
 	"errors"
-	"fmt"
-	events "github.com/RomanIschenko/notify/events"
-	"github.com/RomanIschenko/notify/message"
-	"github.com/google/uuid"
-	"log"
-	"time"
+	"github.com/RomanIschenko/notify/events"
+	"github.com/RomanIschenko/pubsub"
+	"io"
+	"io/ioutil"
 )
 
-var (
-	IncorrectTransportErr = errors.New("transport is nil")
-)
+type Config struct {
+	ID       	string
+	Broker	 	Broker
+	PubSub  	pubsub.Config
+	DataHandler func(client *pubsub.Client, r io.Reader) error
+}
 
 type App struct {
-	id       string
-	events   *events.Source
-	pubsub   *PubSub
-	messages message.Storage
-}
-
-func (app *App) generateClientID() string {
-	return fmt.Sprintf("%s-%s", app.id, uuid.New().String())
-}
-
-func (app *App) identifyMessage(opts MessageSendOptions) SendOptions {
-	mes := message.Message{
-		Data: opts.Data,
-		ID:   fmt.Sprintf("%s-%s", app.id, uuid.New().String()),
-	}
-
-	return SendOptions{
-		Users:      opts.Users,
-		Clients:    opts.Clients,
-		Channels:   opts.Channels,
-		ToBeStored: opts.ToBeStored,
-		Message:    mes,
-		Event:   	opts.Event,
-	}
+	id          string
+	events      *events.Source
+	pubsub      *pubsub.Pubsub
+	dataHandler func(client *pubsub.Client, r io.Reader) error
+	broker 	    Broker
 }
 
 func (app *App) ID() string {
@@ -50,94 +32,44 @@ func (app *App) Events() *events.Source {
 	return app.events
 }
 
-func (app *App) send(opts SendOptions) {
-	app.pubsub.Send(opts)
+func (app *App) publish(opts pubsub.PublishOptions) {
+	app.pubsub.Publish(opts)
 }
 
-func (app *App) join(opts JoinOptions) {
-	app.pubsub.Join(opts)
+func (app *App) subscribe(opts pubsub.SubscribeOptions) {
+	app.pubsub.Subscribe(opts)
 }
 
-func (app *App) leave(opts LeaveOptions) {
-	app.pubsub.Leave(opts)
+func (app *App) unsubscribe(opts pubsub.UnsubscribeOptions) {
+	app.pubsub.Unsubscribe(opts)
 }
 
-func (app *App) loadMessages(ids []string) ([]message.Message, []string) {
-	if app.messages == nil {
-		return nil, nil
-	}
-	return app.messages.Load(app.id, ids)
-}
-
-// highly not recommended to call it
-// because it's automatically called at a specified interval
-// in node or in app
-func (app *App) Clean(ctx context.Context) {
-	start := time.Now()
-	ids := app.pubsub.Clean()
-	elapsed := time.Since(start)
-	log.Printf("Cleaning:\n\tDeleted: %v\n\tTime: %v\n", len(ids), elapsed)
-}
-
-func (app *App) Send(opts SendOptions) {
-	if opts.Event == "" {
-		opts.Event = SendEvent
-	}
-	app.pubsub.Send(opts)
+func (app *App) Publish(opts pubsub.PublishOptions) {
+	app.pubsub.Publish(opts)
 	app.events.Emit(events.Event{
 		Data: opts,
-		Type: opts.Event,
-	})
-	if app.messages != nil && opts.ToBeStored {
-		app.messages.Store(app.id, opts.Message)
-	}
-}
-
-func (app *App) SendMessage(mes MessageSendOptions) {
-	if mes.Event == "" {
-		mes.Event = SendEvent
-	}
-	opts := app.identifyMessage(mes)
-	app.send(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: opts.Event,
-	})
-	if app.messages != nil && opts.ToBeStored {
-		app.messages.Store(app.id, opts.Message)
-	}
-}
-
-func (app *App) Join(opts JoinOptions) {
-	if opts.Event == "" {
-		opts.Event = JoinEvent
-	}
-	app.join(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: opts.Event,
+		Type: PublishEvent,
 	})
 }
 
-func (app *App) Leave(opts LeaveOptions) {
-	if opts.Event == "" {
-		opts.Event = LeaveEvent
-	}
-	app.leave(opts)
+func (app *App) Subscribe(opts pubsub.SubscribeOptions) {
+	app.subscribe(opts)
 	app.events.Emit(events.Event{
 		Data: opts,
-		Type: opts.Event,
+		Type: SubscribeEvent,
 	})
 }
 
-func (app *App) Connect(info ClientInfo, transport Transport) (*Client, error) {
-	if transport == nil {
-		return nil, IncorrectTransportErr
-	}
-	if info.ID == NilId {
-		info.ID = app.generateClientID()
-	}
-	client, err := app.pubsub.Connect(info, transport)
+func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
+	app.unsubscribe(opts)
+	app.events.Emit(events.Event{
+		Data: opts,
+		Type: UnsubscribeEvent,
+	})
+}
+
+func (app *App) Connect(opts pubsub.ConnectOptions) (*pubsub.Client, error) {
+	client, err := app.pubsub.Connect(opts)
 	if err == nil {
 		app.events.Emit(events.Event{
 			Data: client,
@@ -147,41 +79,116 @@ func (app *App) Connect(info ClientInfo, transport Transport) (*Client, error) {
 	return client, err
 }
 
-func (app *App) DisconnectClient(client *Client) {
+func (app *App) InactivateClient(client *pubsub.Client) {
 	if client == nil {
 		return
 	}
-	app.pubsub.DisconnectClient(client)
+	app.pubsub.InactivateClient(client)
 	app.events.Emit(events.Event{
-		Data: client.id,
+		Data: client.ID(),
+		Type: InactivateEvent,
+	})
+}
+
+func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
+	app.pubsub.Disconnect(opts)
+	app.events.Emit(events.Event{
+		Data: opts,
 		Type: DisconnectEvent,
 	})
 }
 
-func (app *App) Disconnect(clientId string) {
-	app.pubsub.Disconnect(clientId)
-	app.events.Emit(events.Event{
-		Data: clientId,
-		Type: DisconnectEvent,
-	})
-}
-
-func (app *App) Server(config ServerConfig) Server {
-	return &appServer{
-		broker:        config.Broker,
-		cleanInterval: config.CleanInterval,
-		dataHandler:   config.DataHandler,
-		starter:       make(chan struct{}, 1),
-		App:           app,
+func (app *App) Handle(client *pubsub.Client, r io.Reader) error {
+	if client == nil {
+		return errors.New("client is nil")
 	}
+	if r == nil {
+		return nil
+	}
+	if app.dataHandler == nil {
+		_, err := ioutil.ReadAll(r)
+		return err
+	}
+	return app.dataHandler(client, r)
 }
 
-func NewApp(config AppConfig) *App {
+func (app *App) startBrokerEventLoop(ctx context.Context) {
+	if app.broker == nil {
+		return
+	}
+	brokerHandlerCloser := app.broker.Handle(func(e BrokerEvent) {
+		if app == nil {
+			return
+		}
+		if e.AppID != app.ID() {
+			return
+		}
+		switch e.Event {
+		case PublishEvent:
+			if opts, ok := e.Data.(pubsub.PublishOptions); ok {
+				app.publish(opts)
+			}
+		case SubscribeEvent:
+			if opts, ok := e.Data.(pubsub.SubscribeOptions); ok {
+				go app.subscribe(opts)
+			}
+		case UnsubscribeEvent:
+			if opts, ok := e.Data.(pubsub.UnsubscribeOptions); ok {
+				go app.unsubscribe(opts)
+			}
+		}
+	})
+	defer brokerHandlerCloser.Close()
+
+	appHandlerCloser := app.Events().Handle(func(e events.Event) {
+		switch e.Type {
+		case SubscribeEvent, UnsubscribeEvent, PublishEvent:
+			app.broker.Emit(BrokerEvent{
+				Data:     e.Data,
+				AppID:    app.ID(),
+				Event:    e.Type,
+			})
+		}
+	})
+	defer appHandlerCloser.Close()
+
+	app.broker.Emit(BrokerEvent{
+		Data:  ctx.Value("instanceUpArg"),
+		AppID: app.ID(),
+		Event: BrokerInstanceUpEvent,
+	})
+
+	defer app.broker.Emit(BrokerEvent{
+		AppID: app.ID(),
+		Event: BrokerInstanceDownEvent,
+	})
+
+	app.broker.Emit(BrokerEvent{
+		AppID: app.ID(),
+		Event: BrokerAppUpEvent,
+	})
+
+	defer app.broker.Emit(BrokerEvent{
+		AppID: app.ID(),
+		Event: BrokerAppDownEvent,
+	})
+
+	<-ctx.Done()
+}
+
+func (app *App) Start(ctx context.Context) {
+	go app.startBrokerEventLoop(ctx)
+	app.pubsub.Start(ctx)
+}
+
+func New(config Config) *App {
 	app := &App{
-		id:       config.ID,
-		events:   events.NewSource(),
-		messages: config.Messages,
+		id:       	 config.ID,
+		events:   	 events.NewSource(),
+		pubsub:   	 pubsub.New(config.PubSub),
+		dataHandler: config.DataHandler,
+		broker:      config.Broker,
 	}
-	app.pubsub = newPubsub(app, config.PubSub)
+
 	return app
 }

@@ -1,9 +1,10 @@
 package notify
 
 const (
-	SendEvent 		string = "send"
-	JoinEvent              = "join"
-	LeaveEvent             = "leave"
-	ConnectEvent           = "connect"
-	DisconnectEvent        = "disconnect"
+	PublishEvent 	 = "pub"
+	SubscribeEvent   = "sub"
+	UnsubscribeEvent = "unsub"
+	ConnectEvent     = "connect"
+	DisconnectEvent  = "disconnect"
+	InactivateEvent  = "inactivate"
 )
