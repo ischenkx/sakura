@@ -6,6 +6,7 @@ import (
 	"github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/pubsub"
 	"io/ioutil"
+	"runtime"
 )
 
 type Config struct {
@@ -13,6 +14,7 @@ type Config struct {
 	Broker	 	Broker
 	PubSub  	pubsub.Config
 	Server		Server
+	ServerGoroutines int
 	Auth		Auth
 	DataHandler func(*App, IncomingData) error
 }
@@ -22,6 +24,7 @@ type App struct {
 	events      *events.Source
 	pubsub      *pubsub.Pubsub
 	server 		Server
+	serverGoroutines int
 	auth 		Auth
 	dataHandler func(*App, IncomingData) error
 	broker 	    Broker
@@ -211,16 +214,22 @@ func (app *App) startServer(ctx context.Context) {
 
 func (app *App) Start(ctx context.Context) {
 	go app.startBrokerEventLoop(ctx)
-	go app.startServer(ctx)
+	for i := 0; i < app.serverGoroutines; i++ {
+		go app.startServer(ctx)
+	}
 	app.pubsub.Start(ctx)
 }
 
 func New(config Config) *App {
+	if config.ServerGoroutines <= 0 {
+		config.ServerGoroutines = runtime.NumCPU()
+	}
 	app := &App{
 		id:       	 config.ID,
 		events:   	 events.NewSource(),
 		pubsub:   	 pubsub.New(config.PubSub),
 		server: 	 config.Server,
+		serverGoroutines: config.ServerGoroutines,
 		auth:		 config.Auth,
 		dataHandler: config.DataHandler,
 		broker:      config.Broker,
