@@ -220,6 +220,8 @@ func New(config Config) *App {
 		id:       	 config.ID,
 		events:   	 events.NewSource(),
 		pubsub:   	 pubsub.New(config.PubSub),
+		server: 	 config.Server,
+		auth:		 config.Auth,
 		dataHandler: config.DataHandler,
 		broker:      config.Broker,
 	}
