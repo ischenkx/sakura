@@ -14,7 +14,7 @@ type Config struct {
 	PubSub  	pubsub.Config
 	Server		Server
 	Auth		Auth
-	DataHandler func(IncomingData) error
+	DataHandler func(*App, IncomingData) error
 }
 
 type App struct {
@@ -23,7 +23,7 @@ type App struct {
 	pubsub      *pubsub.Pubsub
 	server 		Server
 	auth 		Auth
-	dataHandler func(data IncomingData) error
+	dataHandler func(*App, IncomingData) error
 	broker 	    Broker
 }
 
@@ -119,7 +119,7 @@ func (app *App) handle(data IncomingData) error {
 		_, err := ioutil.ReadAll(data.Reader)
 		return err
 	}
-	return app.dataHandler(data)
+	return app.dataHandler(app, data)
 }
 
 func (app *App) startBrokerEventLoop(ctx context.Context) {

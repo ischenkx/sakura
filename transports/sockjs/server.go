@@ -10,7 +10,7 @@ import (
 )
 
 type Server struct {
-	acceptChan chan pubsub.ConnectOptions
+	acceptChan chan notify.IncomingConnection
 	incomingChan chan notify.IncomingData
 	inactivateChan chan *pubsub.Client
 	handler		 http.Handler
@@ -38,6 +38,8 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 		Resolver: make(chan notify.ResolvedConnection),
 	}
 
+	s.acceptChan <- conn
+
 	resolvedConn := <-conn.Resolver
 
 	if resolvedConn.Err != nil {
@@ -63,11 +65,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
-func (s *Server) Accept() <-chan pubsub.ConnectOptions {
+func (s *Server) Accept() <-chan notify.IncomingConnection {
 	return s.acceptChan
 }
 
-func (s *Server) Inactivate() <-chan *pubsub.Client {
+func (s *Server) Inactive() <-chan *pubsub.Client {
 	return s.inactivateChan
 }
 
@@ -77,7 +79,7 @@ func (s *Server) Incoming() <-chan notify.IncomingData {
 
 func NewServer(prefix string, opts sockjs.Options) *Server {
 	s := &Server{
-		acceptChan:   make(chan pubsub.ConnectOptions),
+		acceptChan:   make(chan notify.IncomingConnection),
 		incomingChan: make(chan notify.IncomingData),
 	}
 	s.handler = sockjs.NewHandler(prefix, opts, s.serveSockJS)
