@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/pubsub"
-	"io"
 	"io/ioutil"
 )
 
@@ -13,14 +12,18 @@ type Config struct {
 	ID       	string
 	Broker	 	Broker
 	PubSub  	pubsub.Config
-	DataHandler func(client *pubsub.Client, r io.Reader) error
+	Server		Server
+	Auth		Auth
+	DataHandler func(IncomingData) error
 }
 
 type App struct {
 	id          string
 	events      *events.Source
 	pubsub      *pubsub.Pubsub
-	dataHandler func(client *pubsub.Client, r io.Reader) error
+	server 		Server
+	auth 		Auth
+	dataHandler func(data IncomingData) error
 	broker 	    Broker
 }
 
@@ -68,7 +71,14 @@ func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
 	})
 }
 
-func (app *App) Connect(opts pubsub.ConnectOptions) (*pubsub.Client, error) {
+func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client, error) {
+	if app.auth != nil {
+		clientID, err := app.auth.Authorize(auth)
+		if err != nil {
+			return nil, err
+		}
+		opts.ID = clientID
+	}
 	client, err := app.pubsub.Connect(opts)
 	if err == nil {
 		app.events.Emit(events.Event{
@@ -98,18 +108,18 @@ func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
 	})
 }
 
-func (app *App) Handle(client *pubsub.Client, r io.Reader) error {
-	if client == nil {
+func (app *App) handle(data IncomingData) error {
+	if data.Client == nil {
 		return errors.New("client is nil")
 	}
-	if r == nil {
+	if data.Reader == nil {
 		return nil
 	}
 	if app.dataHandler == nil {
-		_, err := ioutil.ReadAll(r)
+		_, err := ioutil.ReadAll(data.Reader)
 		return err
 	}
-	return app.dataHandler(client, r)
+	return app.dataHandler(data)
 }
 
 func (app *App) startBrokerEventLoop(ctx context.Context) {
@@ -176,8 +186,32 @@ func (app *App) startBrokerEventLoop(ctx context.Context) {
 	<-ctx.Done()
 }
 
+func (app *App) startServer(ctx context.Context) {
+	if app.server == nil {
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case client := <-app.server.Inactive():
+			app.InactivateClient(client)
+		case conn := <-app.server.Accept():
+			go func() {
+				var resolved ResolvedConnection
+				resolved.Client, resolved.Err = app.connect(conn.Opts, conn.AuthData)
+				conn.Resolver <- resolved
+			}()
+		case opts := <-app.server.Incoming():
+			app.handle(opts)
+		}
+	}
+}
+
 func (app *App) Start(ctx context.Context) {
 	go app.startBrokerEventLoop(ctx)
+	go app.startServer(ctx)
 	app.pubsub.Start(ctx)
 }
 
