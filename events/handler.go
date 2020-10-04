@@ -1,3 +1,6 @@
 package events
 
-type Handler func(e Event)
+type Handler struct {
+	closer chan struct{}
+	events chan Event
+}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify-rbp"
+	"github.com/RomanIschenko/notify/brokers"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"io"
@@ -28,7 +28,7 @@ type Broker struct {
 	starter chan struct{}
 	apps chan appEvent
 	handlers map[string]func(notify.BrokerEvent)
-	protocol *rbp.RBP
+	protocol *brokers.RBP
 }
 
 func (b *Broker) Handle(h func(e notify.BrokerEvent)) io.Closer {
@@ -50,15 +50,16 @@ func (b *Broker) Emit(e notify.BrokerEvent) {
 	e.Time = time.Now().UnixNano()
 	marshalledMessage, err := b.protocol.Encode(e)
 	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	switch e.Event {
 	case notify.PublishEvent, notify.SubscribeEvent, notify.UnsubscribeEvent, notify.ConnectEvent, notify.DisconnectEvent:
 		b.client.Publish(context.Background(), e.AppID, marshalledMessage)
-	case notify.BrokerInstanceUpEvent, notify.BrokerInstanceDownEvent:
-		b.client.Publish(context.Background(), globalChannel, marshalledMessage)
 	case notify.BrokerAppUpEvent, notify.BrokerAppDownEvent:
 		b.apps <- appEvent{e.Event, e.AppID}
+		b.client.Publish(context.Background(), globalChannel, marshalledMessage)
+	default:
 		b.client.Publish(context.Background(), globalChannel, marshalledMessage)
 	}
 }
@@ -122,7 +123,7 @@ func New(client redis.UniversalClient) *Broker {
 		id:       uuid.New().String(),
 		starter:  make(chan struct{}, 1),
 		apps:     make(chan appEvent, 128),
-		protocol: rbp.New(),
+		protocol: brokers.NewRBP(),
 		handlers: map[string]func(notify.BrokerEvent){},
 	}
 }

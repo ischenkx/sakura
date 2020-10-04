@@ -11,5 +11,8 @@ func (c HandlerCloser) Close() {
 	}
 	c.src.mu.Lock()
 	defer c.src.mu.Unlock()
-	delete(c.src.handlers, c.uid)
+	if h, ok := c.src.handlers[c.uid]; ok {
+		delete(c.src.handlers, c.uid)
+		close(h.closer)
+	}
 }

@@ -3,10 +3,12 @@ package notify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/pubsub"
 	"io/ioutil"
 	"runtime"
+	"sync"
 )
 
 type Config struct {
@@ -83,6 +85,7 @@ func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client
 		opts.ID = clientID
 	}
 	client, err := app.pubsub.Connect(opts)
+	fmt.Println(err)
 	if err == nil {
 		app.events.Emit(events.Event{
 			Data: client,
@@ -92,7 +95,7 @@ func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client
 	return client, err
 }
 
-func (app *App) InactivateClient(client *pubsub.Client) {
+func (app *App) inactivateClient(client *pubsub.Client) {
 	if client == nil {
 		return
 	}
@@ -125,7 +128,8 @@ func (app *App) handle(data IncomingData) error {
 	return app.dataHandler(app, data)
 }
 
-func (app *App) startBrokerEventLoop(ctx context.Context) {
+func (app *App) startBrokerEventLoop(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	if app.broker == nil {
 		return
 	}
@@ -166,18 +170,8 @@ func (app *App) startBrokerEventLoop(ctx context.Context) {
 	defer appHandlerCloser.Close()
 
 	app.broker.Emit(BrokerEvent{
-		Data:  ctx.Value("instanceUpArg"),
 		AppID: app.ID(),
-		Event: BrokerInstanceUpEvent,
-	})
-
-	defer app.broker.Emit(BrokerEvent{
-		AppID: app.ID(),
-		Event: BrokerInstanceDownEvent,
-	})
-
-	app.broker.Emit(BrokerEvent{
-		AppID: app.ID(),
+		Data: ctx.Value("appUpArg"),
 		Event: BrokerAppUpEvent,
 	})
 
@@ -186,20 +180,22 @@ func (app *App) startBrokerEventLoop(ctx context.Context) {
 		Event: BrokerAppDownEvent,
 	})
 
+	defer fmt.Println("app is done")
+
 	<-ctx.Done()
 }
 
-func (app *App) startServer(ctx context.Context) {
+func (app *App) startServer(ctx context.Context, wg *sync.WaitGroup) {
+	defer wg.Done()
 	if app.server == nil {
 		return
 	}
-
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case client := <-app.server.Inactive():
-			app.InactivateClient(client)
+			app.inactivateClient(client)
 		case conn := <-app.server.Accept():
 			go func() {
 				var resolved ResolvedConnection
@@ -212,10 +208,12 @@ func (app *App) startServer(ctx context.Context) {
 	}
 }
 
-func (app *App) Start(ctx context.Context) {
-	go app.startBrokerEventLoop(ctx)
+func (app *App) Start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go app.startBrokerEventLoop(ctx, wg)
 	for i := 0; i < app.serverGoroutines; i++ {
-		go app.startServer(ctx)
+		wg.Add(1)
+		go app.startServer(ctx, wg)
 	}
 	app.pubsub.Start(ctx)
 }
@@ -234,6 +232,5 @@ func New(config Config) *App {
 		dataHandler: config.DataHandler,
 		broker:      config.Broker,
 	}
-
 	return app
 }
