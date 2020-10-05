@@ -39,5 +39,5 @@ func main()  {
 		fmt.Println(r.URL.String())
 		s.ServeHTTP(w, r)
 	})
-	http.ListenAndServe("localhost:8888", nil)
+	http.ListenAndServe(":8888", nil)
 }

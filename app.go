@@ -32,6 +32,18 @@ type App struct {
 	broker 	    Broker
 }
 
+func (app *App) RegisterNS(ns string, config pubsub.NamespaceConfig) {
+	app.pubsub.NS().Register(ns, config)
+}
+
+func (app *App) UnregisterNS(ns string) {
+	app.pubsub.NS().Unregister(ns)
+}
+
+func (app *App) GetNSConfig(ns string) (pubsub.NamespaceConfig, bool) {
+	return app.pubsub.NS().Get(ns)
+}
+
 func (app *App) ID() string {
 	return app.id
 }

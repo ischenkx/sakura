@@ -17,25 +17,53 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"sync"
 )
 
 func main() {
-
+	fmt.Println(runtime.GOOS)
 	PORT, err := strconv.Atoi(os.Getenv("PORT"))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
+	hostname, err := os.Hostname()
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	res, err := http.Get("http://reg:9090/port?id="+hostname)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	outBoundPort, err := ioutil.ReadAll(res.Body)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:               "redis-18197.c233.eu-west-1-1.ec2.cloud.redislabs.com:18197",
 		Password:           "aByovWxGGvKQFRQG2DJfB7q0UzBMaeEf",
 	})
 
-	broker := redibroker.New(redisClient)
+	fmt.Println(redisClient.Ping(context.Background()).Err())
 
+	broker := redibroker.New(redisClient)
+	ip := "localhost:"+string(outBoundPort)
+	dns.HandleDNSPingEvent(broker, func() string {
+		return ip
+	})
 	go broker.Run(context.Background(), 16)
 
 	server := nsj.NewServer("/pubsub", sockjs.DefaultOptions)
@@ -67,6 +95,8 @@ func main() {
 							},
 	})
 
+	app.RegisterNS()
+
 	closer := app.Events().Handle(func(e events.Event) {
 		if e.Type == notify.ConnectEvent {
 			if client, ok := e.Data.(*pubsub.Client); ok {
@@ -79,11 +109,7 @@ func main() {
 	})
 	defer closer.Close()
 
-	ip := fmt.Sprintf("localhost:%d", PORT)
 
-	dns.HandleDNSPingEvent(broker, func() string {
-		return ip
-	})
 
 	ctx, cancel := context.WithCancel(dns.WithIP(context.Background(), ip))
 
@@ -95,7 +121,7 @@ func main() {
 		fmt.Println("new event:", e.Type)
 	})
 
-	go http.ListenAndServe(ip, nil)
+	go http.ListenAndServe(fmt.Sprintf(":%d", PORT), nil)
 
 	signals := make(chan os.Signal)
 
