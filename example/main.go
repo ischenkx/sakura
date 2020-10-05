@@ -88,20 +88,23 @@ func main() {
 									return err
 								}
 								app.Publish(pubsub.PublishOptions{
-									Topics:  []string{"chat"},
+									Topics:  []string{"chats:global"},
 									Payload: publication.New(mes),
 								})
 								return nil
 							},
 	})
 
-	app.RegisterNS()
+	app.RegisterNS("chats", pubsub.NamespaceConfig{
+		MaxClients: 5,
+		MaxUsers:   pubsub.AnyUsers,
+	})
 
 	closer := app.Events().Handle(func(e events.Event) {
 		if e.Type == notify.ConnectEvent {
 			if client, ok := e.Data.(*pubsub.Client); ok {
 				app.Subscribe(pubsub.SubscribeOptions{
-					Topics:  []string{"chat"},
+					Topics:  []string{"chats:global"},
 					Clients: []string{string(client.ID())},
 				})
 			}

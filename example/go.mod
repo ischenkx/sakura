@@ -3,8 +3,8 @@ module example
 go 1.15
 
 require (
-	github.com/RomanIschenko/notify v0.0.0-20201004153309-5deef8e648c6
-	github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596
+	github.com/RomanIschenko/notify v0.0.0-20201005172147-eacb36ae68f3
+	github.com/RomanIschenko/pubsub v0.0.0-20201005171520-0f661aac4015
 	github.com/armon/consul-api v0.0.0-20180202201655-eb2c6b5be1b6 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/coreos/go-etcd v2.0.0+incompatible // indirect
