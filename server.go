@@ -1,7 +1,7 @@
 package notify
 
 import (
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"io"
 )
 

@@ -2,7 +2,7 @@ package sockjs
 
 import (
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/igm/sockjs-go/sockjs"
 	"net/http"
 	"strings"

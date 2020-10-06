@@ -5,7 +5,7 @@ import (
 "encoding/json"
 "errors"
 "github.com/RomanIschenko/notify"
-"github.com/RomanIschenko/pubsub"
+"github.com/RomanIschenko/notify/pubsub"
 "sync"
 )
 

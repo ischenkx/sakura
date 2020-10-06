@@ -78,12 +78,14 @@ func main() {
 
 	logger := logrus.New()
 
-
+	pubsubLogger := logger.WithFields(logrus.Fields{
+		"source": "pubsub",
+	})
 	app := notify.New(notify.Config{
 		ID:               "app",
 		Broker:           broker,
 		PubSub:           pubsub.Config{
-			Logger: logger.WithField("prefix", "pubsub"),
+			Logger: pubsubLogger,
 		},
 		Server:           server,
 		ServerGoroutines: 12,
@@ -110,7 +112,7 @@ func main() {
 			if client, ok := e.Data.(*pubsub.Client); ok {
 				app.Subscribe(pubsub.SubscribeOptions{
 					Topics:  []string{"chats:global"},
-					Clients: []string{string(client.ID())},
+					Clients: []string{client.ID().String()},
 				})
 			}
 		}

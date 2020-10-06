@@ -2,7 +2,7 @@ package jwt
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/dgrijalva/jwt-go"
 )
 

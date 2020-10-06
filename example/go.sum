@@ -5,6 +5,8 @@ github.com/RomanIschenko/notify v0.0.0-20201006142459-73658129388a h1:JMWbTznDB0
 github.com/RomanIschenko/notify v0.0.0-20201006142459-73658129388a/go.mod h1:aYK3vWei3PL1a1sd80jI7azLZWmKJovTw6LyM/MCyXo=
 github.com/RomanIschenko/notify v0.0.0-20201006143027-97752ebaff15 h1:0Jg0LMa3nFuIpZ/XeKrLFvz06i9y4DjUmvjrXkEIy78=
 github.com/RomanIschenko/notify v0.0.0-20201006143027-97752ebaff15/go.mod h1:hGyij+/FlFdwugsZHaAvUJGooAnDXvmBA0u/DfKXfkM=
+github.com/RomanIschenko/notify v0.0.0-20201006143602-823cba055825 h1:9ma1hIkrH3zMzR5YwLwoRMKacwJWrGEHmkSorJeQDJs=
+github.com/RomanIschenko/notify v0.0.0-20201006143602-823cba055825/go.mod h1:0Qnnz1XOz6BApVC5CxzgFWF4eY+y7b+BIaNmhwbQxTM=
 github.com/RomanIschenko/notify-rbp v0.0.0-20200923201211-c218136d381e/go.mod h1:uzy/NIE/891U7tubSmx1U+Fp+qhOjxKXn7mCnO08jis=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596 h1:+NvC00tEGj1o36tsKmRa39m6IOW5KuOBoeRHwFULCuU=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596/go.mod h1:/inP1lsWvyMxQss9k+lDn4aBGNC+PlG6yr6fZcJq7/A=
@@ -14,6 +16,8 @@ github.com/RomanIschenko/pubsub v0.0.0-20201006142208-ef6c4155328d h1:fcSAUX5pEN
 github.com/RomanIschenko/pubsub v0.0.0-20201006142208-ef6c4155328d/go.mod h1:O4gRX5CNHha/kNCU6JEPejee1RIa/NBJbc4NY8lCiaM=
 github.com/RomanIschenko/pubsub v0.0.0-20201006142931-638d2e55e2d0 h1:rzOIs869m53S+AExEiSq4/6yt5CRovW3lVknhlEcrtA=
 github.com/RomanIschenko/pubsub v0.0.0-20201006142931-638d2e55e2d0/go.mod h1:O4gRX5CNHha/kNCU6JEPejee1RIa/NBJbc4NY8lCiaM=
+github.com/RomanIschenko/pubsub v0.0.0-20201006143518-b95d0c65fb5e h1:8QVvUAd1NfdWZ7dQ4L6juBtiOn71+m1Qbw9cFx+uYRA=
+github.com/RomanIschenko/pubsub v0.0.0-20201006143518-b95d0c65fb5e/go.mod h1:O4gRX5CNHha/kNCU6JEPejee1RIa/NBJbc4NY8lCiaM=
 github.com/cespare/xxhash/v2 v2.1.1 h1:6MnRN8NT7+YBpUIWxHtefFZOKTAPgGjpQSxqLNn0+qY=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=

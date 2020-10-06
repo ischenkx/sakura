@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/RomanIschenko/notify/events"
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"io/ioutil"
 	"runtime"
 	"sync"

@@ -1,7 +1,7 @@
 package sockjs
 
 import (
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/igm/sockjs-go/sockjs"
 	"sync/atomic"
 )

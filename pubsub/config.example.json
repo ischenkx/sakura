@@ -1,0 +1,14 @@
+{
+  "shards": 8,
+  "topic_buckets": 128,
+  "clean_interval": 1e9,
+  "shard_config": {
+    "client_ttl": 5e9,
+    "client_buffer_size": 400,
+    "client_invalidation_time": 5e9
+  },
+  "pub_queue_config": {
+    "writers": 512,
+    "buffer_size": 8192
+  }
+}

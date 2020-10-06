@@ -1,0 +1,49 @@
+This package is supposed to implement basic pubsub functions, which are:
+    Publish(opts)
+        opts:
+            Topics []string
+            Clients []string
+            Users []string
+            EventOptions
+    Subscribe(opts)
+        opts:
+            Topics []string
+            Clients []string
+            Users []string
+            EventOptions
+    Unsubscribe(opts)
+        opts:
+            Topics []string
+            All bool
+            Clients []string
+            Users []string
+            EventOptions
+    Connect(opts)
+        opts:
+            ClientInfo:
+                UserID
+                ClientID
+            Transport:
+                can be anything. for example websockets
+    Disconnect(opts)
+        opts:
+            All bool
+            Clients []string
+            Users []string
+
+But what if have a lot of clients and one PubSub structure
+can't cope with such big amount?
+We probably should use sharding, that's the aim of Manager
+It has same methods as PubSub, but it can process input (opts),
+and distribute it between several PubSub instances.
+
+Ok, let's talk about terms used in this package.
+
+Client - a wrapper over transport, that can be tracked by pubsub,
+subscribed to topics and bound to some user.
+
+User - group of clients that are connected by your logic.
+For example a person logs in on your site and opens two tabs.
+Two clients, but still one user
+
+Topic - group of clients that

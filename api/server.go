@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/RomanIschenko/notify"
 	"github.com/RomanIschenko/notify/api/dns"
-	"github.com/RomanIschenko/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/google/uuid"
 	"net/http"
 )

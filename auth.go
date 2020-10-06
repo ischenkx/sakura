@@ -1,6 +1,6 @@
 package notify
 
-import "github.com/RomanIschenko/pubsub"
+import "github.com/RomanIschenko/notify/pubsub"
 
 type Auth interface {
 	Authorize(string) (pubsub.ClientID, error)
