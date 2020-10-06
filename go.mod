@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/RomanIschenko/notify-rbp v0.0.0-20200923201211-c218136d381e
-	github.com/RomanIschenko/pubsub v0.0.0-20201006142208-ef6c4155328d
+	github.com/RomanIschenko/pubsub v0.0.0-20201006142931-638d2e55e2d0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-redis/redis/v8 v8.2.2
 	github.com/google/uuid v1.1.2

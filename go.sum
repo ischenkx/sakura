@@ -9,6 +9,8 @@ github.com/RomanIschenko/pubsub v0.0.0-20201005173217-b2dd043cf40e h1:hwpDCRys43
 github.com/RomanIschenko/pubsub v0.0.0-20201005173217-b2dd043cf40e/go.mod h1:/inP1lsWvyMxQss9k+lDn4aBGNC+PlG6yr6fZcJq7/A=
 github.com/RomanIschenko/pubsub v0.0.0-20201006142208-ef6c4155328d h1:fcSAUX5pENSlA1DVGysox66jl0fEWdPdHUwUKACs7NQ=
 github.com/RomanIschenko/pubsub v0.0.0-20201006142208-ef6c4155328d/go.mod h1:O4gRX5CNHha/kNCU6JEPejee1RIa/NBJbc4NY8lCiaM=
+github.com/RomanIschenko/pubsub v0.0.0-20201006142931-638d2e55e2d0 h1:rzOIs869m53S+AExEiSq4/6yt5CRovW3lVknhlEcrtA=
+github.com/RomanIschenko/pubsub v0.0.0-20201006142931-638d2e55e2d0/go.mod h1:O4gRX5CNHha/kNCU6JEPejee1RIa/NBJbc4NY8lCiaM=
 github.com/cespare/xxhash/v2 v2.1.1 h1:6MnRN8NT7+YBpUIWxHtefFZOKTAPgGjpQSxqLNn0+qY=
 github.com/cespare/xxhash/v2 v2.1.1/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=

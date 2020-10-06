@@ -1,6 +1,8 @@
 github.com/RomanIschenko/notify v0.0.0-20200923195327-8e58addb723d/go.mod h1:rdLZ5p0BS59yTjPEzXqU38sIV1YE6uP99W9xlgn8WAs=
 github.com/RomanIschenko/notify v0.0.0-20201005173407-658f7bda23fb h1:Vro/sRMtCYs6Zokt1QZP+mmp9zf8sTUoGAZMIYVQQcE=
 github.com/RomanIschenko/notify v0.0.0-20201005173407-658f7bda23fb/go.mod h1:PwxLhNsws5eGFTEi8Wl8Y5QWCwhQ/iukyG8Kw7376tE=
+github.com/RomanIschenko/notify v0.0.0-20201006142459-73658129388a h1:JMWbTznDB0hCcFBLxjSiwgeeFoykud8vAbdQ+Xjyluc=
+github.com/RomanIschenko/notify v0.0.0-20201006142459-73658129388a/go.mod h1:aYK3vWei3PL1a1sd80jI7azLZWmKJovTw6LyM/MCyXo=
 github.com/RomanIschenko/notify-rbp v0.0.0-20200923201211-c218136d381e/go.mod h1:uzy/NIE/891U7tubSmx1U+Fp+qhOjxKXn7mCnO08jis=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596 h1:+NvC00tEGj1o36tsKmRa39m6IOW5KuOBoeRHwFULCuU=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596/go.mod h1:/inP1lsWvyMxQss9k+lDn4aBGNC+PlG6yr6fZcJq7/A=

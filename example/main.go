@@ -13,6 +13,7 @@ import (
 	"github.com/RomanIschenko/pubsub/publication"
 	"github.com/go-redis/redis/v8"
 	"github.com/igm/sockjs-go/sockjs"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -75,10 +76,15 @@ func main() {
 		server.ServeHTTP(w, r)
 	})
 
+	logger := logrus.New()
+
+	logger.WithField("prefix", "pubsub")
 	app := notify.New(notify.Config{
 		ID:               "app",
 		Broker:           broker,
-		PubSub:           pubsub.Config{},
+		PubSub:           pubsub.Config{
+			Logger: logger,
+		},
 		Server:           server,
 		ServerGoroutines: 12,
 		Auth:             jwt.New("thisIsTheJwtSecretPassword"),
