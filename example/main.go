@@ -97,7 +97,6 @@ func main() {
 
 	app.RegisterNS("chats", pubsub.NamespaceConfig{
 		MaxClients: 5,
-		MaxUsers:   pubsub.AnyUsers,
 	})
 
 	closer := app.Events().Handle(func(e events.Event) {
