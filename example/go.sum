@@ -9,6 +9,8 @@ github.com/RomanIschenko/notify v0.0.0-20201006143602-823cba055825 h1:9ma1hIkrH3
 github.com/RomanIschenko/notify v0.0.0-20201006143602-823cba055825/go.mod h1:0Qnnz1XOz6BApVC5CxzgFWF4eY+y7b+BIaNmhwbQxTM=
 github.com/RomanIschenko/notify v0.0.0-20201006145902-c154399e1b55 h1:4VSID3zomkpyQe6vnRNrXqMJO/tLHjT4pfBMC6KiK/8=
 github.com/RomanIschenko/notify v0.0.0-20201006145902-c154399e1b55/go.mod h1:D//vd2oMq0r8HOVSLKWQl4n815P3G3ykIA+j1LXmdzM=
+github.com/RomanIschenko/notify v0.0.0-20201006150740-7db3ef76b115 h1:6EGfHTp/gwJocTJK2EzS2MR5Hh5a+6Rsvsgzw/skfA4=
+github.com/RomanIschenko/notify v0.0.0-20201006150740-7db3ef76b115/go.mod h1:D//vd2oMq0r8HOVSLKWQl4n815P3G3ykIA+j1LXmdzM=
 github.com/RomanIschenko/notify-rbp v0.0.0-20200923201211-c218136d381e/go.mod h1:uzy/NIE/891U7tubSmx1U+Fp+qhOjxKXn7mCnO08jis=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596 h1:+NvC00tEGj1o36tsKmRa39m6IOW5KuOBoeRHwFULCuU=
 github.com/RomanIschenko/pubsub v0.0.0-20200923193722-dd8e5cae9596/go.mod h1:/inP1lsWvyMxQss9k+lDn4aBGNC+PlG6yr6fZcJq7/A=
