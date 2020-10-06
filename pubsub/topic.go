@@ -36,6 +36,7 @@ func (t topic) add(c *Client) error {
 }
 
 func (t topic) del(c *Client) (int, error) {
+	fmt.Println("deleting from topic")
 	if _, ok := t.subs[c]; ok {
 		delete(t.subs, c)
 		if t.cfg.MaxUsers != Any {
