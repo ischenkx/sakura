@@ -78,12 +78,12 @@ func main() {
 
 	logger := logrus.New()
 
-	logger.WithField("prefix", "pubsub")
+
 	app := notify.New(notify.Config{
 		ID:               "app",
 		Broker:           broker,
 		PubSub:           pubsub.Config{
-			Logger: logger,
+			Logger: logger.WithField("prefix", "pubsub"),
 		},
 		Server:           server,
 		ServerGoroutines: 12,
