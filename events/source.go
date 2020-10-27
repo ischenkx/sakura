@@ -2,6 +2,7 @@ package events
 
 import (
 	"github.com/google/uuid"
+	"io"
 	"sync"
 )
 
@@ -54,7 +55,7 @@ func (s *Source) MultiHandle(h func(event Event), grs int) HandlerCloser {
 	return closer
 }
 
-func (s *Source) Handle(h func(Event)) HandlerCloser {
+func (s *Source) Handle(h func(Event)) io.Closer {
 	if h == nil {
 		return HandlerCloser{}
 	}

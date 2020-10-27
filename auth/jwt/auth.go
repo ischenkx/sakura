@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"fmt"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/dgrijalva/jwt-go"
 )
@@ -27,7 +26,6 @@ func (auth *Auth) Authorize(token string) (pubsub.ClientID, error) {
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(auth.secret), nil
 	})
-	fmt.Println(claims, err)
 	return pubsub.ClientID(claims.Data), err
 }
 

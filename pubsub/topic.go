@@ -2,7 +2,6 @@ package pubsub
 
 import (
 	"errors"
-	"fmt"
 )
 
 type topic struct {
@@ -12,7 +11,6 @@ type topic struct {
 }
 
 func (t topic) add(c *Client) error {
-	fmt.Println("adding to the topic")
 	if t.cfg.MaxUsers != Any {
 		userID := c.ID().User()
 		if _, ok := t.users[userID]; !ok {
@@ -30,13 +28,11 @@ func (t topic) add(c *Client) error {
 			}
 		}
 	}
-	fmt.Println("len(t.subs)", len(t.subs), "cfg", t.cfg)
 	t.subs[c] = struct{}{}
 	return nil
 }
 
 func (t topic) del(c *Client) (int, error) {
-	fmt.Println("deleting from topic")
 	if _, ok := t.subs[c]; ok {
 		delete(t.subs, c)
 		if t.cfg.MaxUsers != Any {

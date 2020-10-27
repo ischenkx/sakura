@@ -4,10 +4,13 @@ import (
 	"github.com/RomanIschenko/notify"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/igm/sockjs-go/sockjs"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
 	"time"
 )
+
+var logger = logrus.WithField("source", "sockjs_server")
 
 type Server struct {
 	acceptChan chan notify.IncomingConnection
@@ -25,6 +28,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	auth, err := t.session.Recv()
 
 	if err != nil {
+		logger.Errorf("failed to recv data, closing:", err)
 		t.Close()
 		return
 	}
@@ -43,6 +47,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	resolvedConn := <-conn.Resolver
 
 	if resolvedConn.Err != nil {
+		logger.Errorf("failed to resolve connection, closing:", resolvedConn.Err)
 		t.Close()
 		return
 	}
@@ -53,6 +58,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 		data, err := t.session.Recv()
 
 		if err != nil {
+			logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
 			s.inactivateChan <- client
 			return
 		}

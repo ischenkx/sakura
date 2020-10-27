@@ -10,16 +10,12 @@ import (
 // TODO
 // Handle situations when publish fails (re-publish queue with some interval?)
 
-const MinimalClientTTL = int64(time.Second*5)
+const MinimalClientTTL = time.Second*5
 const MinimalClientBufferSize = 50
 
-type result struct {
-	topicsUp, topicsDown []string
-}
-
 type ShardConfig struct {
-	ClientTTL 		 	   int64
-	ClientInvalidationTime int64
+	ClientTTL 		 	   time.Duration
+	ClientInvalidationTime time.Duration
 	ClientBufferSize 	   int
 }
 
@@ -62,7 +58,7 @@ type shard struct {
 	mu 				sync.RWMutex
 }
 
-func (s *shard) Publish(opts PublishOptions) (res result) {
+func (s *shard) Publish(opts PublishOptions) (res shardResult) {
 	if len(opts.Clients) == 0 && len(opts.Topics) == 0 && len(opts.Users) == 0 {
 		return
 	}
@@ -71,7 +67,6 @@ func (s *shard) Publish(opts PublishOptions) (res result) {
 	for _, userID := range opts.Users {
 		if user, ok := s.users[userID]; ok {
 			for client := range user {
-				//client.Publish(opts.Publication)
 				s.queue.Enqueue(client, opts.Payload)
 			}
 		}
@@ -92,7 +87,7 @@ func (s *shard) Publish(opts PublishOptions) (res result) {
 	return
 }
 
-func (s *shard) Subscribe(opts SubscribeOptions) (res result) {
+func (s *shard) Subscribe(opts SubscribeOptions) (res shardResult) {
 	if (len(opts.Users) == 0 && len(opts.Clients) == 0) || len(opts.Topics) == 0 {
 		return
 	}
@@ -163,7 +158,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res result) {
 	return
 }
 
-func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res result) {
+func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
 	if (len(opts.Users) == 0 && len(opts.Clients) == 0) || (len(opts.Topics) == 0 && !opts.All) {
 		return
 	}
@@ -385,7 +380,7 @@ func (s *shard) InactivateClient(client *Client) {
 	}
 }
 
-func (s *shard) Disconnect(opts DisconnectOptions) (res result) {
+func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 	if len(opts.Users) == 0 && len(opts.Clients) == 0 && !opts.All {
 		return
 	}
@@ -486,12 +481,12 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res result) {
 	return
 }
 
-func (s *shard) Clean() (res result) {
+func (s *shard) Clean() (res shardResult) {
 	inactiveClients := []string{}
 	invalidClients := []string{}
 	now := time.Now().UnixNano()
-	invalidationTime := s.config.ClientInvalidationTime
-	clientTTl := s.config.ClientTTL
+	invalidationTime := int64(s.config.ClientInvalidationTime)
+	clientTTl := int64(s.config.ClientTTL)
 	s.mu.RLock()
 	for id, t := range s.inactiveClients {
 		if now - t >= clientTTl {
@@ -555,6 +550,14 @@ func (s *shard) Clean() (res result) {
 		delete(s.inactiveClients, id)
 		s.mu.Unlock()
 	}
+	return
+}
+
+func (s *shard) Metrics() (m Metrics) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	m.Clients = len(s.clients)
+	m.Users = len(s.users)
 	return
 }
 

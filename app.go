@@ -3,45 +3,55 @@ package notify
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"runtime"
 	"sync"
+	"time"
 )
 
-type Config struct {
-	ID       	string
-	Broker	 	Broker
-	PubSub  	pubsub.Config
-	Server		Server
-	ServerGoroutines int
-	Auth		Auth
+const AppUpArgName = "appUpArg"
+
+var logger = logrus.WithField("source", "notify_app")
+
+type ServerConfig struct {
+	Server Server
+	Goroutines int
+	// if data handler returns non-nil error then client will be disconnected
 	DataHandler func(*App, IncomingData) error
+}
+
+func (cfg ServerConfig) validate() ServerConfig {
+	if cfg.Goroutines <= 0 {
+		cfg.Goroutines = runtime.NumCPU()
+	}
+	return cfg
+}
+
+type Config struct {
+	ID       		string
+	Broker	 		Broker
+	PubSubConfig  	pubsub.Config
+	ServerConfig 	ServerConfig
+	Auth			Auth
+}
+
+func (cfg Config) validate() Config {
+	if cfg.ID == "" {
+		panic("cannot create app with empty id")
+	}
+	return cfg
 }
 
 type App struct {
 	id          string
 	events      *events.Source
 	pubsub      *pubsub.Pubsub
-	server 		Server
-	serverGoroutines int
 	auth 		Auth
-	dataHandler func(*App, IncomingData) error
+	serverConfig ServerConfig
 	broker 	    Broker
-}
-
-func (app *App) RegisterNS(ns string, config pubsub.NamespaceConfig) {
-	app.pubsub.NS().Register(ns, config)
-}
-
-func (app *App) UnregisterNS(ns string) {
-	app.pubsub.NS().Unregister(ns)
-}
-
-func (app *App) GetNSConfig(ns string) (pubsub.NamespaceConfig, bool) {
-	return app.pubsub.NS().Get(ns)
 }
 
 func (app *App) ID() string {
@@ -52,58 +62,48 @@ func (app *App) Events() *events.Source {
 	return app.events
 }
 
-func (app *App) publish(opts pubsub.PublishOptions) {
-	app.pubsub.Publish(opts)
+func (app *App) NSConfig(ns string) (pubsub.NamespaceConfig, bool) {
+	return app.pubsub.NS().Get(ns)
 }
 
-func (app *App) subscribe(opts pubsub.SubscribeOptions) {
-	app.pubsub.Subscribe(opts)
+func (app *App) RegisterNS(ns string, config pubsub.NamespaceConfig) {
+	app.pubsub.NS().Register(ns, config)
 }
 
-func (app *App) unsubscribe(opts pubsub.UnsubscribeOptions) {
-	app.pubsub.Unsubscribe(opts)
+func (app *App) UnregisterNS(ns string) {
+	app.pubsub.NS().Unregister(ns)
 }
 
-func (app *App) Publish(opts pubsub.PublishOptions) {
-	app.pubsub.Publish(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: PublishEvent,
-	})
+func (app *App) publish(opts pubsub.PublishOptions) pubsub.Result {
+	return app.pubsub.Publish(opts)
 }
 
-func (app *App) Subscribe(opts pubsub.SubscribeOptions) {
-	app.subscribe(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: SubscribeEvent,
-	})
+func (app *App) subscribe(opts pubsub.SubscribeOptions) pubsub.Result {
+	return app.pubsub.Subscribe(opts)
 }
 
-func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
-	app.unsubscribe(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: UnsubscribeEvent,
-	})
+func (app *App) unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.Result {
+	return app.pubsub.Unsubscribe(opts)
 }
 
 func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client, error) {
 	if app.auth != nil {
 		clientID, err := app.auth.Authorize(auth)
 		if err != nil {
+			logger.Debug("failed to authorize:", err)
 			return nil, err
 		}
 		opts.ID = clientID
 	}
 	client, err := app.pubsub.Connect(opts)
-	fmt.Println(err)
-	if err == nil {
-		app.events.Emit(events.Event{
-			Data: client,
-			Type: ConnectEvent,
-		})
+	if err != nil {
+		logger.Debug("failed to connect:", err)
+		return client, err
 	}
+	app.events.Emit(events.Event{
+		Data: client,
+		Type: ConnectEvent,
+	})
 	return client, err
 }
 
@@ -118,14 +118,6 @@ func (app *App) inactivateClient(client *pubsub.Client) {
 	})
 }
 
-func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
-	app.pubsub.Disconnect(opts)
-	app.events.Emit(events.Event{
-		Data: opts,
-		Type: DisconnectEvent,
-	})
-}
-
 func (app *App) handle(data IncomingData) error {
 	if data.Client == nil {
 		return errors.New("client is nil")
@@ -133,18 +125,20 @@ func (app *App) handle(data IncomingData) error {
 	if data.Reader == nil {
 		return nil
 	}
-	if app.dataHandler == nil {
+	if app.serverConfig.DataHandler == nil {
 		_, err := ioutil.ReadAll(data.Reader)
 		return err
 	}
-	return app.dataHandler(app, data)
+	return app.serverConfig.DataHandler(app, data)
 }
 
 func (app *App) startBrokerEventLoop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
+
 	if app.broker == nil {
 		return
 	}
+
 	brokerHandlerCloser := app.broker.Handle(func(e BrokerEvent) {
 		if app == nil {
 			return
@@ -155,15 +149,15 @@ func (app *App) startBrokerEventLoop(ctx context.Context, wg *sync.WaitGroup) {
 		switch e.Event {
 		case PublishEvent:
 			if opts, ok := e.Data.(pubsub.PublishOptions); ok {
-				app.publish(opts)
+				app.broker.HandlePubsubResult(app.ID(), app.publish(opts))
 			}
 		case SubscribeEvent:
 			if opts, ok := e.Data.(pubsub.SubscribeOptions); ok {
-				go app.subscribe(opts)
+				app.broker.HandlePubsubResult(app.ID(), app.subscribe(opts))
 			}
 		case UnsubscribeEvent:
 			if opts, ok := e.Data.(pubsub.UnsubscribeOptions); ok {
-				go app.unsubscribe(opts)
+				app.broker.HandlePubsubResult(app.ID(), app.unsubscribe(opts))
 			}
 		}
 	})
@@ -172,77 +166,132 @@ func (app *App) startBrokerEventLoop(ctx context.Context, wg *sync.WaitGroup) {
 	appHandlerCloser := app.Events().Handle(func(e events.Event) {
 		switch e.Type {
 		case SubscribeEvent, UnsubscribeEvent, PublishEvent:
-			app.broker.Emit(BrokerEvent{
-				Data:     e.Data,
-				AppID:    app.ID(),
-				Event:    e.Type,
-			})
+			if actionResult, ok := e.Data.(ActionResult); ok {
+				input := actionResult.Input
+				pubsubResult := actionResult.PubsubResult
+				app.broker.HandlePubsubResult(app.ID(), pubsubResult)
+				app.broker.Emit(BrokerEvent{
+					Data:     input,
+					AppID:    app.ID(),
+					Event:    e.Type,
+				})
+			}
 		}
 	})
 	defer appHandlerCloser.Close()
-
-	app.broker.Emit(BrokerEvent{
-		AppID: app.ID(),
-		Data: ctx.Value("appUpArg"),
-		Event: BrokerAppUpEvent,
-	})
-
-	defer app.broker.Emit(BrokerEvent{
-		AppID: app.ID(),
-		Event: BrokerAppDownEvent,
-	})
-
-	defer fmt.Println("app is done")
 
 	<-ctx.Done()
 }
 
 func (app *App) startServer(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
-	if app.server == nil {
+	if app.serverConfig.Server == nil {
 		return
 	}
+	server := app.serverConfig.Server
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case client := <-app.server.Inactive():
+		case client := <-server.Inactive():
 			app.inactivateClient(client)
-		case conn := <-app.server.Accept():
+		case conn := <-server.Accept():
 			go func() {
 				var resolved ResolvedConnection
 				resolved.Client, resolved.Err = app.connect(conn.Opts, conn.AuthData)
 				conn.Resolver <- resolved
 			}()
-		case opts := <-app.server.Incoming():
-			app.handle(opts)
+		case opts := <-server.Incoming():
+			if err := app.handle(opts); err != nil {
+				logger.Debug("error while handling incoming data:", err)
+			}
 		}
 	}
 }
 
-func (app *App) Start(ctx context.Context, wg *sync.WaitGroup) {
+func (app *App) Publish(opts pubsub.PublishOptions) {
+	res := app.pubsub.Publish(opts)
+	app.events.Emit(events.Event{
+		Data: ActionResult{
+			Input:        opts,
+			PubsubResult: res,
+		},
+		Type: PublishEvent,
+	})
+}
+
+func (app *App) Subscribe(opts pubsub.SubscribeOptions) {
+	app.events.Emit(events.Event{
+		Data: ActionResult{
+			Input:        opts,
+			PubsubResult: app.subscribe(opts),
+		},
+		Type: SubscribeEvent,
+	})
+}
+
+func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
+	app.events.Emit(events.Event{
+		Data: ActionResult{
+			Input:        opts,
+			PubsubResult: app.unsubscribe(opts),
+		},
+		Type: UnsubscribeEvent,
+	})
+}
+
+func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
+	app.events.Emit(events.Event{
+		Data: ActionResult{
+			Input:        opts,
+			PubsubResult: app.pubsub.Disconnect(opts),
+		},
+		Type: DisconnectEvent,
+	})
+}
+
+// starts app, returns a sync.WaitGroup to shutdown gracefully
+func (app *App) Start(ctx context.Context) *sync.WaitGroup {
+	wg := &sync.WaitGroup{}
 	wg.Add(1)
+	logger.Debugf("app %s has started", app.id)
+
+	app.events.Emit(events.Event{
+		Data: time.Now(),
+		Type: AppStartedEvent,
+	})
+
 	go app.startBrokerEventLoop(ctx, wg)
-	for i := 0; i < app.serverGoroutines; i++ {
+	for i := 0; i < app.serverConfig.Goroutines; i++ {
 		wg.Add(1)
 		go app.startServer(ctx, wg)
 	}
-	app.pubsub.Start(ctx)
+	go app.pubsub.Start(ctx)
+
+	//goroutine checking whether app is done
+	go func() {
+		select {
+		case <-ctx.Done():
+		}
+		app.events.Emit(events.Event{
+			Type: AppDoneEvent,
+			Data: time.Now(),
+		})
+	}()
+
+	return wg
 }
 
 func New(config Config) *App {
-	if config.ServerGoroutines <= 0 {
-		config.ServerGoroutines = runtime.NumCPU()
-	}
+	config = config.validate()
+
 	app := &App{
 		id:       	 config.ID,
 		events:   	 events.NewSource(),
-		pubsub:   	 pubsub.New(config.PubSub),
-		server: 	 config.Server,
-		serverGoroutines: config.ServerGoroutines,
+		pubsub:   	 pubsub.New(config.PubSubConfig),
 		auth:		 config.Auth,
-		dataHandler: config.DataHandler,
 		broker:      config.Broker,
+		serverConfig: config.ServerConfig,
 	}
 	return app
 }

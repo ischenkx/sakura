@@ -61,7 +61,6 @@ func (b pubQueue) Start(ctx context.Context) {
 
 func newPubQueue(cfg PubQueueConfig) pubQueue {
 	cfg = cfg.validate()
-
 	writers := make([]chan clientPublication, cfg.Writers)
 	for i := range writers {
 		writers[i] = make(chan clientPublication, cfg.BufferSize)

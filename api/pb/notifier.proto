@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+message EmptyMessage {}
+
+message AuthInput {
+  string ClientID = 1;
+}
+
+message AuthOutput {
+  string Token = 1;
+}
+
+message SubscribeRequest {
+  repeated string Clients = 1;
+  repeated string Users = 2;
+  repeated string Topics = 3;
+  int64 Time = 4;
+  string AppID = 5;
+}
+
+message UnsubscribeRequest {
+  repeated string Clients = 1;
+  repeated string Users = 2;
+  repeated string Topics = 3;
+  int64 Time = 4;
+  string AppID = 5;
+  bool All = 6;
+}
+
+message PublishRequest {
+  repeated string Clients = 1;
+  repeated string Users = 2;
+  repeated string Topics = 3;
+  bytes Message = 4;
+  int64 Time = 5;
+  string AppID = 6;
+
+}
+
+
+service Notify {
+  rpc Publish(PublishRequest) returns (EmptyMessage);
+  rpc Subscribe(SubscribeRequest) returns (EmptyMessage);
+  rpc Unsubscribe(UnsubscribeRequest) returns (EmptyMessage);
+  rpc Authorize(AuthInput) returns (AuthOutput);
+}

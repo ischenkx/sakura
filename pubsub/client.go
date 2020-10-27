@@ -95,7 +95,8 @@ func (c *Client) Publish(p publication.Publication) error {
 	case Inactive:
 		c.buffer.Push(p)
 	case Active:
-		c.transport.Write(p.Data)
+		_, err := c.transport.Write(p.Data)
+		return err
 	}
 	return nil
 }

@@ -1,11 +1,8 @@
 package pubsub
 
 import (
-	"github.com/sirupsen/logrus"
 	"hash/fnv"
 )
-
-var Logger = logrus.New()
 
 func hash(data []byte) int {
 	h := fnv.New32a()
