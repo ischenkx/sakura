@@ -6,6 +6,9 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/go-redis/redis/v8 v8.2.2
+	github.com/gobwas/httphead v0.0.0-20200921212729-da3d93bc3c58 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gobwas/ws v1.0.4
 	github.com/golang/protobuf v1.4.3
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/websocket v1.4.2 // indirect

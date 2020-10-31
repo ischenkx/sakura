@@ -37,9 +37,10 @@ type pubQueue struct {
 }
 
 func (b pubQueue) Enqueue(c *Client, pub publication.Publication) {
-	idx := c.Hash() % len(b.writers)
-	writer := b.writers[idx]
-	writer <- clientPublication{c, pub}
+	c.Publish(pub)
+	//idx := c.Hash() % len(b.writers)
+	//writer := b.writers[idx]
+	//writer <- clientPublication{c, pub}
 }
 
 func (b pubQueue) Start(ctx context.Context) {

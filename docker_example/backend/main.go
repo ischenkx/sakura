@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/RomanIschenko/notify/api"
-	dnslb "github.com/RomanIschenko/notify/load_balancing/dns"
+	dnslb "github.com/RomanIschenko/notify/load_balancer/dns"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"

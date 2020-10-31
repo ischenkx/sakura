@@ -58,7 +58,8 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 		data, err := t.session.Recv()
 
 		if err != nil {
-			logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
+			//logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
+			//fmt.Println("pushing client!!!")
 			s.inactivateChan <- client
 			return
 		}
@@ -85,8 +86,9 @@ func (s *Server) Incoming() <-chan notify.IncomingData {
 
 func NewServer(prefix string, opts sockjs.Options) *Server {
 	s := &Server{
-		acceptChan:   make(chan notify.IncomingConnection),
-		incomingChan: make(chan notify.IncomingData),
+		acceptChan:   make(chan notify.IncomingConnection, 1024),
+		incomingChan: make(chan notify.IncomingData, 1024),
+		inactivateChan: make(chan *pubsub.Client, 1024),
 	}
 	s.handler = sockjs.NewHandler(prefix, opts, s.serveSockJS)
 	return s

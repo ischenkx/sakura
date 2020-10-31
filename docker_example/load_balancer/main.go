@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	redibroker "github.com/RomanIschenko/notify/brokers/redis"
-	dnslb "github.com/RomanIschenko/notify/load_balancing/dns"
+	dnslb "github.com/RomanIschenko/notify/load_balancer/dns"
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 	"net"

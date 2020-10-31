@@ -7,15 +7,19 @@ import (
 	"github.com/RomanIschenko/notify/events"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/publication"
-	nsj "github.com/RomanIschenko/notify/transports/sockjs"
-	"github.com/igm/sockjs-go/sockjs"
+	"github.com/RomanIschenko/notify/transports/websockets"
+	"github.com/gobwas/ws"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+	_ "net/http/pprof"
+	"sync/atomic"
 	"time"
 )
 
 func main() {
-	server := nsj.NewServer("/pubsub", sockjs.DefaultOptions)
+	logrus.SetLevel(logrus.TraceLevel)
+	server := websockets.NewServer(ws.DefaultUpgrader, ws.DefaultHTTPUpgrader)
 	app := notify.New(notify.Config{
 		ID:               "app",
 		PubSubConfig:           pubsub.Config{
@@ -51,6 +55,14 @@ func main() {
 		Auth: authmock.New(),
 	})
 
+	go func() {
+		t := time.NewTicker(time.Second * 3)
+		for range t.C {
+			logrus.Debug(app.Metrics())
+			logrus.Debug(atomic.LoadInt32(&websockets.WritesCounter))
+		}
+	}()
+
 	handle := app.Events().Handle(func(e events.Event) {
 		if e.Type == notify.ConnectEvent {
 			client := e.Data.(*pubsub.Client)
@@ -60,14 +72,16 @@ func main() {
 			})
 		}
 	})
+	
 	defer handle.Close()
 
-	http.HandleFunc("/pubsub/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/pubsub", func(w http.ResponseWriter, r *http.Request) {
 		(w).Header().Set("Access-Control-Allow-Origin", "*")
 		(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		(w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		server.ServeHTTP(w, r)
 	})
+
 	go http.ListenAndServe("localhost:6565", nil)
 	app.Start(context.Background()).Wait()
 }

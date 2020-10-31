@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"sync"
 	"time"
@@ -9,6 +10,19 @@ import (
 
 // TODO
 // Handle situations when publish fails (re-publish queue with some interval?)
+
+type subscriptionState int
+
+const (
+	inactiveSub subscriptionState = iota
+	activeSub
+)
+
+
+type subscription struct {
+	lastTouch int64
+	state 	  subscriptionState
+}
 
 const MinimalClientTTL = time.Second*5
 const MinimalClientBufferSize = 50
@@ -31,17 +45,6 @@ func (cfg ShardConfig) validate() ShardConfig {
 	return cfg
 }
 
-type subscriptionState int
-
-const (
-	inactiveSub subscriptionState = iota
-	activeSub
-)
-
-type subscription struct {
-	lastTouch int64
-	state 	  subscriptionState
-}
 
 type shard struct {
 	id				string
@@ -482,12 +485,14 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 }
 
 func (s *shard) Clean() (res shardResult) {
+	fmt.Println("CLEANING!!!!")
 	inactiveClients := []string{}
 	invalidClients := []string{}
 	now := time.Now().UnixNano()
 	invalidationTime := int64(s.config.ClientInvalidationTime)
 	clientTTl := int64(s.config.ClientTTL)
 	s.mu.RLock()
+	fmt.Println("INACTIVES:", len(s.inactiveClients))
 	for id, t := range s.inactiveClients {
 		if now - t >= clientTTl {
 			inactiveClients = append(inactiveClients, id)

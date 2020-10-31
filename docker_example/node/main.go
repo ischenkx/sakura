@@ -7,18 +7,19 @@ import (
 	"github.com/RomanIschenko/notify/auth/jwt"
 	redibroker "github.com/RomanIschenko/notify/brokers/redis"
 	"github.com/RomanIschenko/notify/events"
-	dnslb "github.com/RomanIschenko/notify/load_balancing/dns"
+	dnslb "github.com/RomanIschenko/notify/load_balancer/dns"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/publication"
-	nsj "github.com/RomanIschenko/notify/transports/sockjs"
+	"github.com/RomanIschenko/notify/transports/websockets"
 	"github.com/go-redis/redis/v8"
-	"github.com/igm/sockjs-go/sockjs"
+	"github.com/gobwas/ws"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"time"
 )
 
 func handleData(app *notify.App, data notify.IncomingData) error {
@@ -75,14 +76,23 @@ func main() {
 
 	broker.Start(context.Background())
 
-	server := nsj.NewServer("/pubsub", sockjs.DefaultOptions)
+	server := websockets.NewServer(ws.DefaultUpgrader, ws.DefaultHTTPUpgrader)
 
 	app := notify.New(notify.Config{
 		ID:           "app",
 		Broker:       broker,
+		PubSubConfig: pubsub.Config{
+			Shards:         16,
+			ShardConfig: pubsub.ShardConfig{
+				ClientTTL:              time.Second * 10,
+				ClientInvalidationTime: time.Second * 10,
+			},
+			CleanInterval:  time.Second*10,
+			TopicBuckets:   6,
+		},
 		ServerConfig: notify.ServerConfig{
 			Server: server,
-			Goroutines: 10,
+			Goroutines: 64,
 			DataHandler: handleData,
 		},
 		Auth:         jwt.New("secret_key"),
@@ -119,7 +129,7 @@ func main() {
 
 	defer regHandle.Close()
 
-	http.HandleFunc("/pubsub/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/pubsub", func(w http.ResponseWriter, r *http.Request) {
 		(w).Header().Set("Access-Control-Allow-Origin", "*")
 		(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		(w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
@@ -134,6 +144,21 @@ func main() {
 	
 	intChan := make(chan os.Signal)
 	signal.Notify(intChan, os.Interrupt)
+
+	go func() {
+		ticker := time.NewTicker(time.Second * 5)
+		for {
+			select {
+			case <-ticker.C:
+				metrics := app.Metrics()
+
+				logrus.WithField("source", "metrics").
+					Debugf("Users: %d\nClients: %d\nTopics: %d", metrics.Users, metrics.Clients, metrics.Topics)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	select {
 	case <- ctx.Done():

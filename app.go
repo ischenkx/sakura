@@ -74,6 +74,10 @@ func (app *App) UnregisterNS(ns string) {
 	app.pubsub.NS().Unregister(ns)
 }
 
+func (app *App) Metrics() pubsub.Metrics {
+	return app.pubsub.Metrics()
+}
+
 func (app *App) publish(opts pubsub.PublishOptions) pubsub.Result {
 	return app.pubsub.Publish(opts)
 }
@@ -202,9 +206,7 @@ func (app *App) startServer(ctx context.Context, wg *sync.WaitGroup) {
 				conn.Resolver <- resolved
 			}()
 		case opts := <-server.Incoming():
-			if err := app.handle(opts); err != nil {
-				logger.Debug("error while handling incoming data:", err)
-			}
+			app.handle(opts)
 		}
 	}
 }

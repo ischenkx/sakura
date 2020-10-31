@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fmt"
 	"github.com/google/uuid"
 	"io"
 	"sync"
@@ -21,6 +22,8 @@ func (s *Source) Emit(e Event) {
 	for _, handler := range s.handlers {
 		select {
 		case handler.events <- e:
+		default:
+			fmt.Println("failed to handle event")
 		}
 	}
 }
