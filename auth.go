@@ -1,8 +1,10 @@
 package notify
 
-import "github.com/RomanIschenko/notify/pubsub"
+import (
+	"github.com/RomanIschenko/notify/pubsub/client_id"
+)
 
 type Auth interface {
-	Authorize(string) (pubsub.ClientID, error)
-	Register(id pubsub.ClientID) (string, error)
+	Authorize(string) (clientid.ID, error)
+	Register(id clientid.ID) (string, error)
 }

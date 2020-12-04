@@ -19,7 +19,7 @@ services:
   load_balancer:
     build: ./load_balancer
     ports:
-      - "6868:8888"
+      - "6969:8888"
   node:
     build: ./node
     ports:

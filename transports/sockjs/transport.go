@@ -2,6 +2,7 @@ package sockjs
 
 import (
 	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/RomanIschenko/notify/pubsub/transport"
 	"github.com/igm/sockjs-go/sockjs"
 	"sync/atomic"
 )
@@ -17,12 +18,12 @@ func (t *Transport) Write(d []byte) (int, error) {
 }
 
 func (t *Transport) Close() error {
-	atomic.StoreInt32(&t.state, int32(pubsub.ClosedTransport))
+	atomic.StoreInt32(&t.state, int32(transport.Closed))
 	return t.session.Close(0, "")
 }
 
-func (t *Transport) State() pubsub.TransportState {
-	return pubsub.TransportState(atomic.LoadInt32(&t.state))
+func (t *Transport) State() transport.State {
+	return transport.State(atomic.LoadInt32(&t.state))
 }
 
 

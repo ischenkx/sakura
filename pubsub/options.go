@@ -1,14 +1,47 @@
 package pubsub
 
-import (
-	"github.com/RomanIschenko/notify/pubsub/publication"
-)
+import "time"
+
+type DisconnectOptions struct {
+	Clients []string
+	Users	[]string
+	All bool
+	Time int64
+}
+
+func (t *DisconnectOptions) validate() {
+	if t.Time <= 0 {
+		t.Time = time.Now().UnixNano()
+	}
+}
+
+type PublishOptions struct {
+	Topics []string
+	Clients []string
+	Users []string
+	Payload []byte
+	Time int64
+	MetaInfo interface{}
+}
+
+func (t *PublishOptions) validate() {
+	if t.Time <= 0 {
+		t.Time = time.Now().UnixNano()
+	}
+}
 
 type SubscribeOptions struct {
 	Topics []string
 	Clients []string
 	Users []string
-	Time 	int64
+	Time int64
+	MetaInfo interface{}
+}
+
+func (t *SubscribeOptions) validate() {
+	if t.Time <= 0 {
+		t.Time = time.Now().UnixNano()
+	}
 }
 
 type UnsubscribeOptions struct {
@@ -16,26 +49,16 @@ type UnsubscribeOptions struct {
 	Clients []string
 	Users []string
 	All bool
-	Time 	int64
+	Time int64
+	MetaInfo interface{}
 }
 
-type PublishOptions struct {
-	Topics []string
-	Clients []string
-	Users []string
-	Payload publication.Publication
-	Time 	int64
+func (t *UnsubscribeOptions) validate() {
+	if t.Time <= 0 {
+		t.Time = time.Now().UnixNano()
+	}
 }
 
-type ConnectOptions struct {
-	Transport Transport
-	ID		  ClientID
-	Time 	  int64
-}
 
-type DisconnectOptions struct {
-	Clients []string
-	Users	[]string
-	All		bool
-	Time 	int64
-}
+
+

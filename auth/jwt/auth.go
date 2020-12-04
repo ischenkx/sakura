@@ -1,7 +1,7 @@
 package jwt
 
 import (
-	"github.com/RomanIschenko/notify/pubsub"
+	clientid "github.com/RomanIschenko/notify/pubsub/client_id"
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -17,16 +17,16 @@ type Auth struct {
 	secret string
 }
 
-func (auth *Auth) Register(id pubsub.ClientID) (string, error) {
+func (auth *Auth) Register(id clientid.ID) (string, error) {
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{string(id)}).SignedString([]byte(auth.secret))
 }
 
-func (auth *Auth) Authorize(token string) (pubsub.ClientID, error) {
+func (auth *Auth) Authorize(token string) (clientid.ID, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(auth.secret), nil
 	})
-	return pubsub.ClientID(claims.Data), err
+	return clientid.ID(claims.Data), err
 }
 
 func New(secret string) *Auth {

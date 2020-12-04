@@ -1,93 +1,54 @@
 package events
 
 import (
-	"fmt"
 	"github.com/google/uuid"
+	"github.com/panjf2000/ants/v2"
 	"io"
+	"runtime"
 	"sync"
 )
 
 
-//todo
-//implement non-blocking event source (probably a goroutine for each handler)
 type Source struct {
-	handlers map[string]Handler
-
+	handlers map[string]map[string]func(interface{})
+	pool *ants.Pool
 	mu sync.RWMutex
 }
 
 func (s *Source) Emit(e Event) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, handler := range s.handlers {
-		select {
-		case handler.events <- e:
-		default:
-			fmt.Println("failed to handle event")
+	if handlers, ok := s.handlers[e.Type]; ok {
+		for _, handler := range handlers {
+			handler(e)
 		}
 	}
 }
 
-func (s *Source) MultiHandle(h func(event Event), grs int) HandlerCloser {
-	if h == nil {
+func (s *Source) Handle(e string, f func(interface{})) io.Closer {
+	if f == nil {
 		return HandlerCloser{}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	uid := uuid.New().String()
-	closer := HandlerCloser{uid, s}
-	closerCh := make(chan struct{})
-	eventsCh := make(chan Event, 4096)
-	s.handlers[uid] = Handler{
-		closer: closerCh,
-		events: eventsCh,
+	closer := HandlerCloser{uid,e, s}
+	handlers, ok := s.handlers[e]
+	if !ok {
+		handlers = map[string]func(interface{}){}
+		s.handlers[e] = handlers
 	}
-	for i := 0; i < grs; i++ {
-		go func(h func(Event), closer chan struct{}, events chan Event) {
-			for {
-				select {
-				case <-closer:
-					return
-				case event := <-events:
-					h(event)
-				}
-			}
-		}(h, closerCh, eventsCh)
-	}
-
-	return closer
-}
-
-func (s *Source) Handle(h func(Event)) io.Closer {
-	if h == nil {
-		return HandlerCloser{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	uid := uuid.New().String()
-	closer := HandlerCloser{uid, s}
-	closerCh := make(chan struct{})
-	eventsCh := make(chan Event, 4096)
-	s.handlers[uid] = Handler{
-		closer: closerCh,
-		events: eventsCh,
-	}
-	go func(h func(Event), closer chan struct{}, events chan Event) {
-		for {
-			select {
-			case <-closer:
-				return
-			case event := <-events:
-				h(event)
-			}
-		}
-	}(h, closerCh, eventsCh)
-
+	handlers[uid] = f
 	return closer
 }
 
 func NewSource() *Source {
+	pool, err := ants.NewPool(runtime.NumCPU())
+	if err != nil {
+		panic(err)
+	}
 	return &Source{
-		handlers: map[string]Handler{},
+		handlers: map[string]map[string]func(interface{}){},
+		pool: pool,
 	}
 }

@@ -2,7 +2,7 @@ package pubsub
 
 import (
 	"errors"
-	"fmt"
+	"github.com/RomanIschenko/notify/pubsub/changelog"
 	"github.com/google/uuid"
 	"sync"
 	"time"
@@ -18,7 +18,6 @@ const (
 	activeSub
 )
 
-
 type subscription struct {
 	lastTouch int64
 	state 	  subscriptionState
@@ -27,22 +26,20 @@ type subscription struct {
 const MinimalClientTTL = time.Second*5
 const MinimalClientBufferSize = 50
 
-type ShardConfig struct {
-	ClientTTL 		 	   time.Duration
-	ClientInvalidationTime time.Duration
-	ClientBufferSize 	   int
+type ClientConfig struct {
+	TTL 		 	   time.Duration
+	InvalidationTime time.Duration
+	BufferSize 	   int
 }
 
-func (cfg ShardConfig) validate() ShardConfig {
-	if cfg.ClientTTL <= MinimalClientTTL {
-		cfg.ClientTTL = MinimalClientTTL
+func (cfg *ClientConfig) validate() {
+	if cfg.TTL <= MinimalClientTTL {
+		cfg.TTL = MinimalClientTTL
 	}
 
-	if cfg.ClientBufferSize < MinimalClientBufferSize {
-		cfg.ClientBufferSize = MinimalClientBufferSize
+	if cfg.BufferSize < MinimalClientBufferSize {
+		cfg.BufferSize = MinimalClientBufferSize
 	}
-
-	return cfg
 }
 
 
@@ -51,49 +48,57 @@ type shard struct {
 	clients  		map[string]*Client
 	users			map[string]map[*Client]struct{}
 	topics 	 		map[string]topic
+	// client id => unix nanoseconds
+	// inactive clients are clients which are disconnected for a short time
+	// (example: transport - websocket, internet issues cause client disconnections
+	// for 5 seconds or something like that, it'd be inefficient to delete it and recreate again)
 	inactiveClients map[string]int64
+	// client id => unix nanoseconds
+	// invalid client is a client that was recently deleted from inactive clients
+	// due to timeout
 	invalidClients  map[string]int64
 	subs	 		map[string]map[string]*subscription
 	userSubs 		map[string]map[string]*subscription
 	nsRegistry 		*namespaceRegistry
-	config			ShardConfig
-	queue			pubQueue
+	clientConfig	ClientConfig
 	mu 				sync.RWMutex
 }
 
-func (s *shard) Publish(opts PublishOptions) (res shardResult) {
+func (s *shard) Publish(opts PublishOptions) (res PublishLog) {
 	if len(opts.Clients) == 0 && len(opts.Topics) == 0 && len(opts.Users) == 0 {
 		return
 	}
+	res.Time = opts.Time
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, userID := range opts.Users {
 		if user, ok := s.users[userID]; ok {
 			for client := range user {
-				s.queue.Enqueue(client, opts.Payload)
+				client.publish(opts.Payload)
 			}
 		}
 	}
 	for _, clientID := range opts.Clients {
 		if client, ok := s.clients[clientID]; ok {
-			s.queue.Enqueue(client, opts.Payload)
+			client.publish(opts.Payload)
 		}
 	}
 
 	for _, topicID := range opts.Topics {
 		if topic, ok := s.topics[topicID]; ok {
 			for client := range topic.subscribers() {
-				s.queue.Enqueue(client, opts.Payload)
+				client.publish(opts.Payload)
 			}
 		}
 	}
 	return
 }
 
-func (s *shard) Subscribe(opts SubscribeOptions) (res shardResult) {
+func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 	if (len(opts.Users) == 0 && len(opts.Clients) == 0) || len(opts.Topics) == 0 {
 		return
 	}
+	res.Time = opts.Time
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -102,7 +107,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res shardResult) {
 		if !ok {
 			topic = s.nsRegistry.generate(topicID)
 			s.topics[topicID] = topic
-			res.topicsUp = append(res.topicsUp, topicID)
+			res.TopicsUp = append(res.TopicsUp, topicID)
 		}
 
 		for _, clientID := range opts.Clients {
@@ -125,6 +130,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res shardResult) {
 
 				sub.lastTouch = opts.Time
 				sub.state = activeSub
+				// todo: handle error
 				topic.add(client)
 			}
 		}
@@ -161,10 +167,11 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res shardResult) {
 	return
 }
 
-func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
+func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 	if (len(opts.Users) == 0 && len(opts.Clients) == 0) || (len(opts.Topics) == 0 && !opts.All) {
 		return
 	}
+	res.Time = opts.Time
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -191,7 +198,7 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
 				if topic, ok := s.topics[topicID]; ok {
 					if l, _ := topic.del(client); l == 0 {
 						delete(s.topics, topicID)
-						res.topicsDown = append(res.topicsDown, topicID)
+						res.TopicsDown = append(res.TopicsDown, topicID)
 					}
 				}
 
@@ -235,7 +242,7 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
 					}
 					if l, _ := topic.del(client); l == 0 {
 						delete(s.topics, topicID)
-						res.topicsDown = append(res.topicsDown, topicID)
+						res.TopicsDown = append(res.TopicsDown, topicID)
 						break
 					}
 				}
@@ -296,7 +303,7 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
 						}
 						if l, _ := topic.del(client); l == 0 {
 							delete(s.topics, topicID)
-							res.topicsDown = append(res.topicsDown, topicID)
+							res.TopicsDown = append(res.TopicsDown, topicID)
 							continue topicLoop
 						}
 					}
@@ -307,71 +314,78 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res shardResult) {
 	return
 }
 
-func (s *shard) Connect(opts ConnectOptions) (*Client, error) {
+func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
+
+	var res changelog.Log
 	if opts.Transport == nil {
-		return nil, errors.New("connect failed: transport is nil")
+		return nil, res, errors.New("connect failed: transport is nil")
 	}
 	if opts.ID == "" {
-		return nil, errors.New("connect failed: client id is empty")
+		return nil, res, errors.New("connect failed: client id is empty")
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, invalid := s.invalidClients[string(opts.ID)]; invalid {
-		return nil, errors.New("client has been invalidated, try to reconnect")
+		return nil, res, errors.New("client has been invalidated, try to reconnect")
 	}
 
-	client, clientExisted := s.clients[string(opts.ID)]
+	c, clientExisted := s.clients[string(opts.ID)]
 
 	if !clientExisted {
 		var err error
-		client, err = newClient(opts.ID, s.config.ClientBufferSize)
+		c, err = newClient(opts.ID, s.clientConfig.BufferSize)
 		if err != nil {
-			return nil, err
+			return nil, changelog.Log{}, err
 		}
-	} else if client.ID().User() != opts.ID.User() {
-		return nil, errors.New("invalid user id")
+	} else if c.ID().User() != opts.ID.User() {
+		return nil, changelog.Log{}, errors.New("invalid user id")
 	}
 
-	if err := client.tryActivate(opts.Transport); err == nil {
-		s.clients[string(client.ID())] = client
-		delete(s.inactiveClients, string(client.ID()))
+	if err := c.tryActivate(opts.Transport); err == nil {
+
+		s.clients[c.ID().String()] = c
+		delete(s.inactiveClients, c.ID().String())
 
 		if opts.ID.User() != "" {
 			userID := opts.ID.User()
 			user, ok := s.users[userID]
 			if ok {
-				user[client] = struct{}{}
+				user[c] = struct{}{}
 			} else {
 				user = map[*Client]struct{}{}
-				user[client] = struct{}{}
+				user[c] = struct{}{}
 				s.users[userID] = user
+				res.UsersUp = append(res.UsersUp, userID)
 			}
 			if !clientExisted {
 				if userSubs, ok := s.userSubs[userID]; ok {
 					for topicID, sub := range userSubs {
 						if sub.state == activeSub {
-							s.topics[topicID].add(client)
+							s.topics[topicID].add(c)
 						}
 					}
 				}
 			}
 		}
-		return client, nil
+
+		res.ClientsUp = append(res.ClientsUp, c.ID().String())
+
+		return c, res, nil
 	} else {
-		return nil, err
+		return nil, res, err
 	}
 }
 
-func (s *shard) InactivateClient(client *Client) {
+func (s *shard) InactivateClient(client *Client) (res changelog.Log) {
 	if client == nil {
 		return
 	}
+	res.Time = time.Now().UnixNano()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	if realClient, exists := s.clients[string(client.ID())]; exists {
 		if realClient != client {
 			return
@@ -379,22 +393,25 @@ func (s *shard) InactivateClient(client *Client) {
 		if err := client.tryInactivate(); err != nil {
 			return
 		}
-		s.inactiveClients[string(client.ID())] = time.Now().UnixNano()
+		res.ClientsDown = append(res.ClientsDown, client.ID().String())
+		s.inactiveClients[client.ID().String()] = time.Now().UnixNano()
 	}
+	return
 }
 
-func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
+func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 	if len(opts.Users) == 0 && len(opts.Clients) == 0 && !opts.All {
 		return
 	}
+	res.Time = opts.Time
 	if opts.All {
 		for _, client := range s.clients {
 			client.forceInvalidate()
 		}
-		res.topicsDown = make([]string, 0, len(s.topics))
+		res.TopicsDown = make([]string, 0, len(s.topics))
 
 		for topicID := range s.topics {
-			res.topicsDown = append(res.topicsDown, topicID)
+			res.TopicsDown = append(res.TopicsDown, topicID)
 		}
 		s.clients = map[string]*Client{}
 		s.users = map[string]map[*Client]struct{}{}
@@ -418,7 +435,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 						if sub.state == activeSub {
 							topic := s.topics[topicID]
 							if l, _ := topic.del(client); l == 0 {
-								res.topicsDown = append(res.topicsDown, topicID)
+								res.TopicsDown = append(res.TopicsDown, topicID)
 								delete(s.topics, topicID)
 							}
 						}
@@ -430,7 +447,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 						if sub.state == activeSub {
 							topic := s.topics[topicID]
 							if l, _ := topic.del(client); l == 0 {
-								res.topicsDown = append(res.topicsDown, topicID)
+								res.TopicsDown = append(res.TopicsDown, topicID)
 								delete(s.topics, topicID)
 							}
 						}
@@ -453,7 +470,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 					if sub.state == activeSub {
 						topic := s.topics[topicID]
 						if l, _ := topic.del(client); l == 0 {
-							res.topicsDown = append(res.topicsDown, topicID)
+							res.TopicsDown = append(res.TopicsDown, topicID)
 							delete(s.topics, topicID)
 						}
 					}
@@ -467,7 +484,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 							if sub.state == activeSub {
 								topic := s.topics[topicID]
 								if l, _ := topic.del(client); l == 0 {
-									res.topicsDown = append(res.topicsDown, topicID)
+									res.TopicsDown = append(res.TopicsDown, topicID)
 									delete(s.topics, topicID)
 								}
 							}
@@ -484,15 +501,14 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res shardResult) {
 	return
 }
 
-func (s *shard) Clean() (res shardResult) {
-	fmt.Println("CLEANING!!!!")
+func (s *shard) Clean() (res changelog.Log) {
 	inactiveClients := []string{}
 	invalidClients := []string{}
 	now := time.Now().UnixNano()
-	invalidationTime := int64(s.config.ClientInvalidationTime)
-	clientTTl := int64(s.config.ClientTTL)
+	invalidationTime := int64(s.clientConfig.InvalidationTime)
+	clientTTl := int64(s.clientConfig.TTL)
+	res.Time = now
 	s.mu.RLock()
-	fmt.Println("INACTIVES:", len(s.inactiveClients))
 	for id, t := range s.inactiveClients {
 		if now - t >= clientTTl {
 			inactiveClients = append(inactiveClients, id)
@@ -510,6 +526,7 @@ func (s *shard) Clean() (res shardResult) {
 	}
 	s.mu.Lock()
 	for _, id := range invalidClients {
+		res.ClientsDown = append(res.ClientsDown, id)
 		delete(s.invalidClients, id)
 	}
 	s.mu.Unlock()
@@ -518,13 +535,14 @@ func (s *shard) Clean() (res shardResult) {
 		if client, ok := s.clients[id]; ok {
 			if err := client.tryInvalidate(); err == nil {
 				delete(s.clients, id)
+				res.ClientsDown = append(res.ClientsDown, id)
 				if subs, ok := s.subs[id]; ok {
 					delete(s.subs, id)
 					for topicID, sub := range subs {
 						if sub.state == activeSub {
 							topic := s.topics[topicID]
 							if l, _ := topic.del(client); l == 0 {
-								res.topicsDown = append(res.topicsDown, topicID)
+								res.TopicsDown = append(res.TopicsDown, topicID)
 								delete(s.topics, topicID)
 							}
 						}
@@ -538,13 +556,14 @@ func (s *shard) Clean() (res shardResult) {
 								if sub.state == activeSub {
 									topic := s.topics[topicID]
 									if l, _ := topic.del(client); l == 0 {
-										res.topicsDown = append(res.topicsDown, topicID)
+										res.TopicsDown = append(res.TopicsDown, topicID)
 										delete(s.topics, topicID)
 									}
 								}
 							}
 						}
 						if len(user) == 0 {
+							res.UsersDown = append(res.UsersDown, userID)
 							delete(s.users, userID)
 							delete(s.userSubs, userID)
 						}
@@ -558,6 +577,26 @@ func (s *shard) Clean() (res shardResult) {
 	return
 }
 
+func (s *shard) Clients() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	clients := make([]string, 0, len(s.clients))
+	for id := range s.clients {
+		clients = append(clients, id)
+	}
+	return clients
+}
+
+func (s *shard) Users() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	users := make([]string, 0, len(s.users))
+	for id := range s.users {
+		users = append(users, id)
+	}
+	return users
+}
+
 func (s *shard) Metrics() (m Metrics) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -566,8 +605,8 @@ func (s *shard) Metrics() (m Metrics) {
 	return
 }
 
-func newShard(queue pubQueue, nsRegistry *namespaceRegistry, config ShardConfig) *shard {
-	config = config.validate()
+func newShard(nsRegistry *namespaceRegistry, clientCfg ClientConfig) *shard {
+	clientCfg.validate()
 	return &shard{
 		id: uuid.New().String(),
 		clients: 		 map[string]*Client{},
@@ -578,7 +617,6 @@ func newShard(queue pubQueue, nsRegistry *namespaceRegistry, config ShardConfig)
 		users: 			 map[string]map[*Client]struct{}{},
 		userSubs: 		 map[string]map[string]*subscription{},
 		nsRegistry: 	 nsRegistry,
-		config:          config,
-		queue:			 queue,
+		clientConfig:    clientCfg,
 	}
 }

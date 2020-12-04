@@ -4,41 +4,41 @@ import (
 	"context"
 	"fmt"
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/auth/jwt"
-	redibroker "github.com/RomanIschenko/notify/brokers/redis"
-	"github.com/RomanIschenko/notify/events"
-	dnslb "github.com/RomanIschenko/notify/load_balancer/dns"
+	authmock "github.com/RomanIschenko/notify/auth/mock"
+	"github.com/RomanIschenko/notify/cluster"
+	"github.com/RomanIschenko/notify/cluster/balancer"
+	redibroker "github.com/RomanIschenko/notify/cluster/broker/redis"
 	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/publication"
+	"github.com/RomanIschenko/notify/pubsub/changelog"
+	taskctx "github.com/RomanIschenko/notify/task_context"
 	"github.com/RomanIschenko/notify/transports/websockets"
 	"github.com/go-redis/redis/v8"
 	"github.com/gobwas/ws"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 )
 
-func handleData(app *notify.App, data notify.IncomingData) error {
-	bts, err := ioutil.ReadAll(data.Reader)
-	if err != nil {
-		return err
-	}
-	
+func handleData(app *notify.App, data notify.IncomingData) {
 	app.Publish(pubsub.PublishOptions{
 		Topics:  []string{"chat"},
 		Clients: nil,
 		Users:   nil,
-		Payload: publication.New(bts),
+		Payload: data.Payload,
 	})
-
-	return nil
 }
 
 func main() {
+
+	ctx, shutdown := context.WithCancel(context.Background())
+	taskContext := taskctx.New(ctx)
+
 	logrus.SetLevel(logrus.TraceLevel)
 
 	innerPort, err := strconv.Atoi(os.Getenv("PORT"))
@@ -70,64 +70,53 @@ func main() {
 		Addr: "host.docker.internal:6379",
 	})
 
-	broker := redibroker.New(redibroker.Config{
-		Client: redisClient,
-	})
+	adapter := redibroker.New(redisClient)
 
-	broker.Start(context.Background())
+	adapter.Broker(context.Background())
 
 	server := websockets.NewServer(ws.DefaultUpgrader, ws.DefaultHTTPUpgrader)
 
 	app := notify.New(notify.Config{
 		ID:           "app",
-		Broker:       broker,
 		PubSubConfig: pubsub.Config{
 			Shards:         16,
-			ShardConfig: pubsub.ShardConfig{
-				ClientTTL:              time.Second * 10,
-				ClientInvalidationTime: time.Second * 10,
+			ClientConfig: pubsub.ClientConfig{
+				TTL:              time.Second * 10,
+				InvalidationTime: time.Second * 10,
+				BufferSize: 		1024,
 			},
 			CleanInterval:  time.Second*10,
-			TopicBuckets:   6,
 		},
 		ServerConfig: notify.ServerConfig{
 			Server: server,
-			Goroutines: 64,
 			DataHandler: handleData,
 		},
-		Auth:         jwt.New("secret_key"),
+		Auth:  authmock.New(),
 	})
-	
-	appEventsHandle := app.Events().Handle(func(event events.Event) {
-		if event.Type == notify.ConnectEvent {
-			client := event.Data.(*pubsub.Client)
-
-			app.Subscribe(pubsub.SubscribeOptions{
-				Topics:  []string{"chat"},
-				Clients: []string{client.ID().String()},
-			})
-
-			app.Publish(pubsub.PublishOptions{
-				Topics:  []string{"chat"},
-				Payload: publication.New(
-					[]byte(fmt.Sprintf("client %s joined the chat", client.ID())),
-				),
-			})
-		}
+	app.Events(taskContext).OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
+		app.Subscribe(pubsub.SubscribeOptions{
+			Topics:  []string{"chat"},
+			Clients: []string{client.ID().String()},
+		})
+		app.Publish(pubsub.PublishOptions{
+			Topics:  []string{"chat"},
+			Payload: []byte(fmt.Sprintf("client %s joined the chat %s", client.ID(), "chat")),
+		})
 	})
-	defer appEventsHandle.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	awaiter := app.Start(ctx)
-
-	regHandle, err := dnslb.Register(app, broker, fmt.Sprintf("localhost:%d", outterPort))
+	err = cluster.RegisterApp(ctx, adapter.Broker(ctx), app)
+	if err != nil {
+		panic(err)
+	}
+	err = balancer.Register(taskContext, adapter.Broker(ctx), app, func() string {
+		return fmt.Sprintf("localhost:%d", outterPort)
+	})
 
 	if err != nil {
 		panic(err)
 	}
 
-	defer regHandle.Close()
+	app.Start(ctx)
 
 	http.HandleFunc("/pubsub", func(w http.ResponseWriter, r *http.Request) {
 		(w).Header().Set("Access-Control-Allow-Origin", "*")
@@ -143,15 +132,14 @@ func main() {
 	go http.ListenAndServe(fmt.Sprintf(":%d", innerPort), nil)
 	
 	intChan := make(chan os.Signal)
-	signal.Notify(intChan, os.Interrupt)
+	signal.Notify(intChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		ticker := time.NewTicker(time.Second * 5)
+		ticker := time.NewTicker(time.Second * 15)
 		for {
 			select {
 			case <-ticker.C:
 				metrics := app.Metrics()
-
 				logrus.WithField("source", "metrics").
 					Debugf("Users: %d\nClients: %d\nTopics: %d", metrics.Users, metrics.Clients, metrics.Topics)
 			case <-ctx.Done():
@@ -163,9 +151,7 @@ func main() {
 	select {
 	case <- ctx.Done():
 	case <- intChan:
-		cancel()
 	}
-
-	awaiter.Wait()
-	logrus.WithField("source", "main").Debug("finishing")
+	shutdown()
+	logrus.WithField("source", "main").Debug("EXIT")
 }

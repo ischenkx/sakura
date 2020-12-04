@@ -3,10 +3,10 @@ package sockjs
 import (
 	"github.com/RomanIschenko/notify"
 	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/RomanIschenko/notify/pubsub/transport"
 	"github.com/igm/sockjs-go/sockjs"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -22,7 +22,7 @@ type Server struct {
 func (s *Server) serveSockJS(session sockjs.Session) {
 	t := &Transport{
 		session:   session,
-		state:  int32(pubsub.OpenTransport),
+		state:  int32(transport.Open),
 	}
 
 	auth, err := t.session.Recv()
@@ -34,7 +34,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	}
 
 	conn := notify.IncomingConnection{
-		Opts: pubsub.ConnectOptions{
+		Opts: pubsub.Connect{
 			Transport: t,
 			Time:      time.Now().UnixNano(),
 		},
@@ -64,7 +64,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 			return
 		}
 
-		s.incomingChan <- notify.IncomingData{client, strings.NewReader(data)}
+		s.incomingChan <- notify.IncomingData{client, []byte(data)}
 	}
 }
 

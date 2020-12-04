@@ -3,37 +3,38 @@ package main
 import (
 	"context"
 	"fmt"
-	redibroker "github.com/RomanIschenko/notify/brokers/redis"
-	dnslb "github.com/RomanIschenko/notify/load_balancer/dns"
+	"github.com/RomanIschenko/notify/cluster/balancer"
+	"github.com/RomanIschenko/notify/cluster/balancer/policies"
+	redibroker "github.com/RomanIschenko/notify/cluster/broker/redis"
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
-	"net"
-	"time"
+	"net/http"
 )
 
 func main() {
-	fmt.Println("dns load balancer started")
 	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx := context.Background()
+
 	redisClient := redis.NewClient(&redis.Options{
 		Addr: "host.docker.internal:6379",
 	})
 
-	broker := redibroker.New(redibroker.Config{
-		Client: redisClient,
+	adapter := redibroker.New(redisClient)
+
+	b := balancer.New(balancer.Config{
+		Policy:          &policies.RoundRobin{},
 	})
 
-	broker.Start(context.Background())
+	b.Start(context.Background(), adapter.Broker(ctx))
 
-	server := dnslb.NewServer(dnslb.Config{
-		Broker:          broker,
-		PingInterval: time.Second * 10,
+	http.HandleFunc("/address", func(w http.ResponseWriter, r *http.Request) {
+		if addr, err := b.GetAddr(); err == nil {
+			w.Write([]byte(addr))
+		} else {
+			w.WriteHeader(500)
+		}
 	})
 
-	lis, err := net.Listen("tcp", ":8888")
-
-	if err != nil {
-		panic(err)
-	}
-
-	server.Start(context.Background(), lis)
+	http.ListenAndServe(fmt.Sprintf(":%d", 8888), nil)
 }

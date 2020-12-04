@@ -2,7 +2,6 @@ package notify
 
 import (
 	"github.com/RomanIschenko/notify/pubsub"
-	"io"
 )
 
 type ResolvedConnection struct {
@@ -13,12 +12,12 @@ type ResolvedConnection struct {
 type IncomingConnection struct {
 	Resolver chan ResolvedConnection
 	AuthData string
-	Opts	 pubsub.ConnectOptions
+	Opts     pubsub.ConnectOptions
 }
 
 type IncomingData struct {
 	Client *pubsub.Client
-	Reader io.Reader
+	Payload []byte
 }
 
 type Server interface {

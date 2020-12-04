@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"fmt"
+	"github.com/RomanIschenko/notify/pubsub/client_id"
 	"github.com/google/uuid"
 	_ "net/http/pprof"
 	"testing"
@@ -26,12 +27,12 @@ func TestTopic(t *testing.T) {
 		MaxClients: 5,
 	})
 
-	client1, _ := newClient(NewClientID("1", uuid.New().String()), 1)
-	client2, _ := newClient(NewClientID("2", uuid.New().String()), 1)
-	client3, _ := newClient(NewClientID("3", uuid.New().String()), 1)
-	client4, _ := newClient(NewClientID("1", uuid.New().String()), 1)
-	client5, _ := newClient(NewClientID("1", uuid.New().String()), 1)
-	client6, _ := newClient(NewClientID("1", uuid.New().String()), 1)
+	client1, _ := newClient(clientid.New("1", uuid.New().String()), 1)
+	client2, _ := newClient(clientid.New("2", uuid.New().String()), 1)
+	client3, _ := newClient(clientid.New("3", uuid.New().String()), 1)
+	client4, _ := newClient(clientid.New("1", uuid.New().String()), 1)
+	client5, _ := newClient(clientid.New("1", uuid.New().String()), 1)
+	client6, _ := newClient(clientid.New("1", uuid.New().String()), 1)
 
 	c2 := registry.generate("2c:2c")
 	u2 := registry.generate("2u:2u")

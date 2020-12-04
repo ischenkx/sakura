@@ -1,9 +1,11 @@
 package events
 
-import "errors"
+import (
+	"errors"
+)
 
 type HandlerCloser struct {
-	uid string
+	uid, event string
 	src *Source
 }
 
@@ -13,9 +15,6 @@ func (c HandlerCloser) Close() error {
 	}
 	c.src.mu.Lock()
 	defer c.src.mu.Unlock()
-	if h, ok := c.src.handlers[c.uid]; ok {
-		delete(c.src.handlers, c.uid)
-		close(h.closer)
-	}
+	delete(c.src.handlers[c.event], c.uid)
 	return nil
 }

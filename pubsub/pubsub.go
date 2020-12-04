@@ -2,112 +2,56 @@ package pubsub
 
 import (
 	"context"
-	"hash/fnv"
+	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/internal/distributor"
 	"time"
 )
 
 const DefaultShardsAmount = 128
-const DefaultTopicBuckets = 32
 const DefaultCleanInterval = time.Minute*3
-
-type ActionResult struct {
-	TopicsUp []string
-	TopicsDown []string
-}
 
 type Config struct {
 	Shards 		  int
-	ShardConfig   ShardConfig
-	PubQueueConfig PubQueueConfig
+	ClientConfig   ClientConfig
 	CleanInterval time.Duration
-	TopicBuckets  int
 }
 
-func (cfg Config) validate() Config {
+func (cfg *Config) validate() {
 	if cfg.Shards <= 0 {
 		cfg.Shards = DefaultShardsAmount
-	}
-
-	if cfg.TopicBuckets <= 0 {
-		cfg.TopicBuckets = DefaultTopicBuckets
 	}
 
 	if cfg.CleanInterval <= 0 {
 		cfg.CleanInterval = DefaultCleanInterval
 	}
-
-	if cfg.TopicBuckets <= 0 {
-		cfg.TopicBuckets = 8
-	}
-
-	return cfg
-}
-
-type batch struct {
-	clients, users, topics []string
 }
 
 type Pubsub struct {
-	shards []*shard
-	config Config
-	queue pubQueue
+	shards     []*shard
+	config     Config
+	events 	   *eventsHub
 	nsRegistry *namespaceRegistry
-	topics topicDispatcher
+	distrib *distributor.Distributor
 }
 
-func (p *Pubsub) hash(b []byte) (int, error) {
-	h := fnv.New32a()
-	if _, err := h.Write(b); err != nil {
-		return 0, err
-	}
-	return int(h.Sum32()), nil
+func (p *Pubsub) Events(ctx context.Context) *ContextEvents {
+	return p.events.ctxHub(ctx)
 }
 
-func (p *Pubsub) distribute(b batch) map[int]batch {
-	db := map[int]batch{}
-	l := len(p.shards)
+func (p *Pubsub) Clean() {
+	res := p.distrib.Aggregate(func(s int) changelog.Log {
+		shard := p.shards[s]
+		return shard.Clean()
+	})
 
-	for _, clientID := range b.clients {
-		id := ClientID(clientID)
-		if h, err := id.Hash(); err == nil {
-			idx := h % l
-			b1 := db[idx]
-			b1.clients = append(b1.clients, clientID)
-			db[idx] = b1
-		}
+	if !res.Empty() {
+		p.events.emitChange(res)
 	}
-
-	for _, userID := range b.users {
-		h := hash([]byte(userID))
-		idx := h % l
-		b1 := db[idx]
-		b1.users = append(b1.users, userID)
-		db[idx] = b1
-	}
-
-	for s, topics := range p.topics.get(b.topics) {
-		b1 := db[s]
-		b1.topics = topics
-		db[s] = b1
-	}
-
-	return db
-}
-
-func (p *Pubsub) clean() {
-	for _, shard := range p.shards {
-		shard.Clean()
-	}
-}
-
-func (p *Pubsub) processShardResults(r shardResultCollector) (res Result) {
-	res.TopicsUp, res.TopicsDown = p.topics.processShardResults(r)
-	return
 }
 
 func (p *Pubsub) Metrics() Metrics {
 	metrics := &Metrics{
-		Topics: p.topics.Amount(),
+		Topics: p.distrib.TopicsAmount(),
 	}
 
 	for _, shard := range p.shards {
@@ -122,88 +66,91 @@ func (p *Pubsub) NS() *namespaceRegistry {
 	return p.nsRegistry
 }
 
-func (p *Pubsub) Publish(opts PublishOptions) Result {
-	b := batch{opts.Clients, opts.Users, opts.Topics}
+func  (p *Pubsub) Publish(opts PublishOptions) (Publication, PublishLog, error) {
+	opts.validate()
 
-	c := newShardResultCollector()
+	var log PublishLog
+	log.Publication = NewPublication(opts.Payload)
 
-	for shardIdx, batch := range p.distribute(b) {
+	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
+
+	p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
-		opts.Topics = batch.topics
-		opts.Users = batch.users
-		opts.Clients = batch.clients
-		c.collect(shardIdx, shard.Publish(opts))
-	}
-
-	return p.processShardResults(c)
+		opts.Topics = b.Topics
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		shard.Publish(opts)
+		return changelog.Log{}
+	})
+	p.events.emitPublish(log.Publication, opts)
+	return log.Publication, log, nil
 }
 
-func (p *Pubsub) Subscribe(opts SubscribeOptions) Result {
-	b := batch{opts.Clients, opts.Users, nil}
+func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
+	opts.validate()
+	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
 
-	c := newShardResultCollector()
-
-	for shardIdx, batch := range p.distribute(b) {
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
-		opts.Users = batch.users
-		opts.Clients = batch.clients
-		c.collect(shardIdx, shard.Subscribe(opts))
-	}
-
-	return p.processShardResults(c)
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Subscribe(opts)
+	})
+	p.events.emitSubscribe(opts, res)
+	return res
 }
 
-func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) Result {
-	b := batch{opts.Clients, opts.Users, opts.Topics}
-
-	c := newShardResultCollector()
-
-	for shardIdx, batch := range p.distribute(b) {
+func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
+	opts.validate()
+	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
-		opts.Topics = batch.topics
-		opts.Users = batch.users
-		opts.Clients = batch.clients
-		c.collect(shardIdx, shard.Unsubscribe(opts))
-	}
-
-	return p.processShardResults(c)
+		opts.Topics = b.Topics
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Unsubscribe(opts)
+	})
+	p.events.emitUnsubscribe(opts, res)
+	return res
 }
 
 func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
-
 	h, err := opts.ID.Hash()
 	if err != nil {
 		return nil, err
 	}
 	shard := p.shards[h % len(p.shards)]
-	return shard.Connect(opts)
+
+	c, res, err := shard.Connect(opts)
+	p.events.emitConnect(opts, c, res)
+	return c, err
 }
 
-func (p *Pubsub) Disconnect(opts DisconnectOptions) Result {
-	b := batch{opts.Clients, opts.Users, nil}
-
-	c := newShardResultCollector()
-
-	for shardIdx, batch := range p.distribute(b) {
+func (p *Pubsub) Disconnect(opts DisconnectOptions) changelog.Log {
+	opts.validate()
+	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
-		opts.Users = batch.users
-		opts.Clients = batch.clients
-		c.collect(shardIdx, shard.Disconnect(opts))
-	}
-
-	return p.processShardResults(c)
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Disconnect(opts)
+	})
+	p.events.emitDisconnect(opts, res)
+	return res
 }
 
-func (p *Pubsub) Start(ctx context.Context) {
-	p.queue.Start(ctx)
-
+// StartCleaner cleans the whole pubsub system
+// each Config.CleanInterval
+// It is a blocking call
+func (p *Pubsub) StartCleaner(ctx context.Context) {
 	cleaner := time.NewTicker(p.config.CleanInterval)
+	defer cleaner.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-cleaner.C:
-			p.clean()
+			p.Clean()
 		}
 	}
 }
@@ -216,26 +163,49 @@ func (p *Pubsub) InactivateClient(client *Client) {
 	h := client.Hash()
 	idx := h % len(p.shards)
 	shard := p.shards[idx]
-	shard.InactivateClient(client)
+	res := shard.InactivateClient(client)
+	p.distrib.ProcessResult(idx, res)
+	p.events.emitInactivate(client.ID())
+}
+
+func (p *Pubsub) Clients() []string {
+	var clients []string
+
+	for _, s := range p.shards {
+		clients = append(clients, s.Clients()...)
+	}
+
+	return clients
+}
+
+func (p *Pubsub) Users() []string {
+	var users []string
+
+	for _, s := range p.shards {
+		users = append(users, s.Users()...)
+	}
+
+	return users
+}
+
+func (p *Pubsub) Topics() []string {
+	return p.distrib.Topics()
 }
 
 func New(config Config) *Pubsub {
-	config = config.validate()
+	config.validate()
 	shards := make([]*shard, config.Shards)
-
-	queue := newPubQueue(config.PubQueueConfig)
 	nsRegistry := newNamespaceRegistry()
-	topicProvider := newTopicDispatcher(config.TopicBuckets)
 
 	for i := range shards {
-		shards[i] = newShard(queue, nsRegistry, config.ShardConfig)
+		shards[i] = newShard(nsRegistry, config.ClientConfig)
 	}
 
 	return &Pubsub{
-		shards: shards,
-		queue: queue,
-		config: config,
+		shards:     shards,
+		config:     config,
+		events:     newEventsHub(),
 		nsRegistry: nsRegistry,
-		topics: topicProvider,
+		distrib: distributor.New(config.Shards),
 	}
 }

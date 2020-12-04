@@ -2,44 +2,51 @@ package pubsub
 
 import (
 	"errors"
-	"github.com/RomanIschenko/notify/pubsub/publication"
+	"github.com/RomanIschenko/notify/internal/batch_queue"
+	"github.com/RomanIschenko/notify/pubsub/client_id"
+	"github.com/RomanIschenko/notify/pubsub/transport"
 	"sync"
 )
 
 type ClientState int
 
 const (
-	Active   ClientState = iota
+	Active ClientState = iota
 	Inactive
 	Invalid
 )
 
 type Client struct {
-	id		  ClientID
-	transport Transport
-	buffer publication.Buffer
+	id             clientid.ID
+	queue          *batchqueue.Queue
 	hash, userHash int
-	state 	   ClientState
-	mu 		   sync.Mutex
+	state          ClientState
+	meta           *sync.Map
+	mu             sync.Mutex
 }
 
-func (c *Client) tryActivate(t Transport) error {
+func (c *Client) tryActivate(t transport.Transport) error {
 	if t == nil {
 		return errors.New("nil transport activation")
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if c.state == Invalid {
 		return errors.New("can't activate invalid client")
 	}
-	if t.State() == ClosedTransport {
+
+	if t.State() == transport.Closed {
 		return errors.New("cannot activate client with closed transport")
 	}
+
 	if c.state == Active {
-		c.transport.Close()
+		c.queue.Inactivate()
 	}
+
+	c.queue.Activate(t)
 	c.state = Active
-	c.transport = t
+
 	return nil
 }
 
@@ -51,8 +58,7 @@ func (c *Client) tryInactivate() error {
 		return errors.New("can't inactivate non-active client")
 	}
 	c.state = Inactive
-	c.transport.Close()
-	c.transport = nil
+	c.queue.Inactivate()
 	return nil
 }
 
@@ -65,10 +71,7 @@ func (c *Client) tryInvalidate() error {
 	if c.state == Active {
 		return errors.New("can't invalidate client with active state, actually you can force invalidate")
 	}
-	if c.transport != nil {
-		c.transport.Close()
-		c.transport = nil
-	}
+	c.queue.Inactivate()
 	c.state = Invalid
 	return nil
 }
@@ -79,29 +82,15 @@ func (c *Client) forceInvalidate() {
 	if c.state == Invalid {
 		return
 	}
-	if c.transport != nil {
-		c.transport.Close()
-		c.transport = nil
-	}
+	c.queue.Inactivate()
 	c.state = Invalid
 }
 
-func (c *Client) Publish(p publication.Publication) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	switch c.state {
-	case Invalid:
-		return errors.New("can't publish to invalid client")
-	case Inactive:
-		c.buffer.Push(p)
-	case Active:
-		_, err := c.transport.Write(p.Data)
-		return err
-	}
-	return nil
+func (c *Client) publish(p []byte) {
+	c.queue.Push(p)
 }
 
-func (c *Client) ID() ClientID {
+func (c *Client) ID() clientid.ID {
 	return c.id
 }
 
@@ -113,7 +102,11 @@ func (c *Client) UserHash() int {
 	return c.userHash
 }
 
-func newClient(id ClientID, bufferSize int) (*Client, error) {
+func (c *Client) Meta() *sync.Map {
+	return c.meta
+}
+
+func newClient(id clientid.ID, bufferSize int) (*Client, error) {
 	idHash, err := id.Hash()
 
 	if err != nil {
@@ -121,9 +114,10 @@ func newClient(id ClientID, bufferSize int) (*Client, error) {
 	}
 
 	return &Client{
-		id:  	id,
-		hash:   idHash,
-		buffer: publication.NewBuffer(bufferSize),
-		state:  Inactive,
+		id:    id,
+		hash:  idHash,
+		meta:  &sync.Map{},
+		queue: batchqueue.New(bufferSize),
+		state: Inactive,
 	}, nil
 }

@@ -1,11 +1,12 @@
 package websockets
 
 import (
-	"bytes"
 	"github.com/RomanIschenko/notify"
 	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/RomanIschenko/notify/pubsub/transport"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"net"
 	"net/http"
@@ -20,13 +21,20 @@ type Server struct {
 	inactivateChan chan *pubsub.Client
 	upgrader ws.Upgrader
 	httpUpgrder ws.HTTPUpgrader
-
 }
 
 func (s *Server) serveConn(c net.Conn) {
+
+
+	if tcpConn, ok := c.(*net.TCPConn); ok {
+		tcpConn.SetNoDelay(true)
+	}
+
+
 	t := &Transport{
 		conn:   c,
-		state:  int32(pubsub.OpenTransport),
+		state:  int32(transport.Open),
+		uid: uuid.New().String(),
 	}
 	data, _, err := wsutil.ReadClientData(c)
 	if err != nil {
@@ -56,15 +64,16 @@ func (s *Server) serveConn(c net.Conn) {
 	client := resolvedConn.Client
 
 	for {
+
 		data, _, err := wsutil.ReadClientData(c)
 
 		if err != nil {
-			logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
+			logger.Debugf("(websockets)session.Recv failed, inactivating connection:", err)
 			s.inactivateChan <- client
 			return
 		}
 
-		s.incomingChan <- notify.IncomingData{client, bytes.NewReader(data)}
+		s.incomingChan <- notify.IncomingData{Client: client, Payload: data}
 	}
 }
 
