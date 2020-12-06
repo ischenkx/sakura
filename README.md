@@ -23,10 +23,8 @@ import (
 )
 
 func main() {
-
 	// websockets server based on gobwas/ws
 	server := websockets.NewServer(ws.DefaultUpgrader, ws.DefaultHTTPUpgrader)
-
 	// here we create a simple application
 	// to send notifications (chat messages)
 	app := notify.New(notify.Config{
