@@ -3,6 +3,7 @@ package pubsub
 import (
 	"errors"
 	"github.com/RomanIschenko/notify/internal/batch_queue"
+	"github.com/RomanIschenko/notify/pubsub/clientid"
 	"github.com/RomanIschenko/notify/pubsub/transport"
 	"sync"
 )
@@ -107,8 +108,8 @@ func (c *Client) Meta() *sync.Map {
 }
 
 func newClient(id string, bufferSize int) (*Client, error) {
-	userId := GetUserID(id)
-	hash, err := HashClientID(id)
+	userId := clientid.User(id)
+	hash, err := clientid.Hash(id)
 	if err != nil {
 		return nil, err
 	}

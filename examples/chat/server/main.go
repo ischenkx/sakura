@@ -39,9 +39,7 @@ func main() {
 		},
 		ServerConfig: notify.ServerConfig{
 			Server:          server,
-			InactiveReaders: 6,
-			AcceptReaders:   6,
-			IncomingReaders: 6,
+			Workers: 6,
 			DataHandler:     DataHandler,
 		},
 		Auth:         authmock.New(),
@@ -51,11 +49,11 @@ func main() {
 		OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
 			app.Subscribe(pubsub.SubscribeOptions{
 				Topics:   []string{"chat"},
-				Clients:  []string{client.ID().String()},
+				Clients:  []string{client.ID()},
 			})
 			app.Publish(pubsub.PublishOptions{
 				Topics:   []string{"chat"},
-				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID().String())),
+				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
 			})
 		})
 

@@ -3,6 +3,7 @@ package pubsub
 import (
 	"errors"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/clientid"
 	"github.com/google/uuid"
 	"sync"
 	"time"
@@ -331,7 +332,7 @@ func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
 		if err != nil {
 			return nil, changelog.Log{}, err
 		}
-	} else if c.UserID() != GetUserID(opts.ID) {
+	} else if c.UserID() != clientid.User(opts.ID) {
 		return nil, changelog.Log{}, errors.New("invalid user id")
 	}
 
@@ -340,7 +341,7 @@ func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
 		s.clients[c.ID()] = c
 		delete(s.inactiveClients, c.ID())
 
-		userID := GetUserID(opts.ID)
+		userID := clientid.User(opts.ID)
 		if userID != "" {
 			user, ok := s.users[userID]
 			if ok {

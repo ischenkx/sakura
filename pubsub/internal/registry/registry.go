@@ -2,8 +2,8 @@ package registry
 
 import (
 	"github.com/RomanIschenko/notify/internal"
-	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/clientid"
 )
 
 type Registry struct {
@@ -19,7 +19,7 @@ func (d *Registry) TopicsAmount() int {
 func (d *Registry) AggregateSharded(b Batch, f func(int, Batch) changelog.Log) (r changelog.Log) {
 	sharder := d.sharderPool.Get()
 	for _, clientID := range b.Clients {
-		hash, err := pubsub.HashClientID(clientID)
+		hash, err := clientid.Hash(clientID)
 		if err != nil {
 			continue
 		}

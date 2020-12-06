@@ -1,4 +1,4 @@
-package pubsub
+package clientid
 
 import (
 	"errors"
@@ -16,16 +16,16 @@ import (
 // id that we are working with is the concatenation of id and user id
 // or just id of a client.
 
-const ClientIDLength = 36
+const Length = 36
 
-func GetUserID(clientID string) string {
-	if len(clientID) < ClientIDLength + 1 {
+func User(clientID string) string {
+	if len(clientID) < Length+ 1 {
 		return ""
 	}
-	return clientID[ClientIDLength+1:]
+	return clientID[Length+1:]
 }
 
-func NewClientID(userId string) string {
+func New(userId string) string {
 	id := uuid.New().String()
 	if len(userId) == 0 {
 		return id
@@ -33,23 +33,12 @@ func NewClientID(userId string) string {
 	return fmt.Sprintf("%s:%s", id, userId)
 }
 
-func ParseClientID(id string) (clientID string, userID string, err error) {
-	if len(id) < ClientIDLength {
-		return "", "", errors.New("incorrect client id")
-	}
-	var userId string
-	if len(id) > ClientIDLength {
-		userId = id[ClientIDLength+1:]
-	}
-	return id, userId, nil
-}
-
-func HashClientID(id string) (int, error) {
-	if len(id) < ClientIDLength {
+func Hash(id string) (int, error) {
+	if len(id) < Length {
 		return -1, errors.New("id length is incorrect")
 	}
-	if len(id) > ClientIDLength {
-		id = id[ClientIDLength:]
+	if len(id) > Length {
+		id = id[Length:]
 	}
 	return internal.Hash([]byte(id)), nil
 }

@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/clientid"
 	"github.com/RomanIschenko/notify/pubsub/internal/registry"
 	"time"
 )
@@ -108,9 +109,9 @@ func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
 
 func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
 	if opts.ID == "" {
-		opts.ID = NewClientID("")
+		opts.ID = clientid.New("")
 	}
-	h, err := HashClientID(opts.ID)
+	h, err := clientid.Hash(opts.ID)
 	if err != nil {
 		return nil, err
 	}

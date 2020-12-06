@@ -23,17 +23,12 @@ type Pong struct {
 }
 
 type Config struct {
-	Policy          Policy
 	PingInterval    time.Duration
 	PongDeadline    time.Duration
 	PongsBufferSize int
 }
 
 func (cfg *Config) validate() {
-	if cfg.Policy == nil {
-		panic("invalid config: no load balancer_pb policy provided")
-	}
-
 	if cfg.PingInterval <= 0 {
 		cfg.PingInterval = time.Second * 5
 	}
@@ -51,10 +46,18 @@ type Balancer struct {
 	pingInterval    time.Duration
 	pongDeadline    time.Duration
 	pongs           chan Pong
-	policy 			Policy
 	recentlyDeleted map[string]time.Time
 	instances       []Instance
 	mu              sync.RWMutex
+}
+
+func (balancer *Balancer) List(f func(AddressList)) {
+	if f == nil {
+		return
+	}
+	balancer.mu.RLock()
+	defer balancer.mu.RUnlock()
+	f(addrList(balancer.instances))
 }
 
 func (balancer *Balancer) startPinging(ctx context.Context, b broker.Broker) {
@@ -145,7 +148,7 @@ func (balancer *Balancer) handleBrokerEvents(brk broker.Broker) {
 
 // adds Instance, not thread-safe (requires lock)
 func (balancer *Balancer) add(inst Instance) {
-	lbLogger.Debugf("adding Instance %s", inst.ID)
+	lbLogger.Debugf("adding instance %s, %s", inst.ID, inst.Address)
 	for _, i := range balancer.instances {
 		if i.ID == inst.ID {
 			return
@@ -158,16 +161,6 @@ func (balancer *Balancer) add(inst Instance) {
 		delete(balancer.recentlyDeleted, inst.ID)
 	}
 	balancer.instances = append(balancer.instances, inst)
-}
-
-func (balancer *Balancer) GetAddr() (string, error) {
-	balancer.mu.RLock()
-	defer balancer.mu.RUnlock()
-	inst, err := balancer.policy.Next(addrList(balancer.instances))
-	if err != nil {
-		return "", err
-	}
-	return inst.Address, err
 }
 
 // deletes server Instance by id, not thread-safe (requires lock)
@@ -227,6 +220,5 @@ func New(cfg Config) *Balancer {
 		pongDeadline:    cfg.PongDeadline,
 		instances:       []Instance{},
 		recentlyDeleted: map[string]time.Time{},
-		policy: cfg.Policy,
 	}
 }
