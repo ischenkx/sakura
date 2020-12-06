@@ -1,4 +1,4 @@
-package distributor
+package registry
 
 type Batch struct {
 	Clients, Users, Topics []string

@@ -64,11 +64,10 @@ type shard struct {
 	mu 				sync.RWMutex
 }
 
-func (s *shard) Publish(opts PublishOptions) (res PublishLog) {
+func (s *shard) Publish(opts PublishOptions) {
 	if len(opts.Clients) == 0 && len(opts.Topics) == 0 && len(opts.Users) == 0 {
 		return
 	}
-	res.Time = opts.Time
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, userID := range opts.Users {
@@ -91,7 +90,6 @@ func (s *shard) Publish(opts PublishOptions) (res PublishLog) {
 			}
 		}
 	}
-	return
 }
 
 func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
@@ -117,7 +115,6 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 					subs = map[string]*subscription{}
 					s.subs[clientID] = subs
 				}
-
 				sub, ok := subs[topicID]
 				if ok {
 					if sub.lastTouch > opts.Time {
@@ -127,7 +124,6 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 					sub = &subscription{}
 					subs[topicID] = sub
 				}
-
 				sub.lastTouch = opts.Time
 				sub.state = activeSub
 				// todo: handle error
@@ -154,7 +150,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 				sub.state = activeSub
 
 				for client := range user {
-					if clientSubs, ok := s.subs[string(client.ID())]; ok {
+					if clientSubs, ok := s.subs[client.ID()]; ok {
 						if _, ok := clientSubs[topicID]; ok {
 							continue
 						}
@@ -235,7 +231,7 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 				}
 
 				for client := range user {
-					if clientSubs, ok := s.subs[string(client.ID())]; ok {
+					if clientSubs, ok := s.subs[client.ID()]; ok {
 						if _, ok := clientSubs[topicID]; ok {
 							continue
 						}
@@ -296,7 +292,7 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 					user := s.users[userID]
 
 					for client := range user {
-						if clientSubs, ok := s.subs[string(client.ID())]; ok {
+						if clientSubs, ok := s.subs[client.ID()]; ok {
 							if _, ok := clientSubs[topicID]; ok {
 								continue
 							}
@@ -315,7 +311,6 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 }
 
 func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
-
 	var res changelog.Log
 	if opts.Transport == nil {
 		return nil, res, errors.New("connect failed: transport is nil")
@@ -323,15 +318,12 @@ func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
 	if opts.ID == "" {
 		return nil, res, errors.New("connect failed: client id is empty")
 	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	if _, invalid := s.invalidClients[string(opts.ID)]; invalid {
+	if _, invalid := s.invalidClients[opts.ID]; invalid {
 		return nil, res, errors.New("client has been invalidated, try to reconnect")
 	}
-
-	c, clientExisted := s.clients[string(opts.ID)]
+	c, clientExisted := s.clients[opts.ID]
 
 	if !clientExisted {
 		var err error
@@ -339,17 +331,17 @@ func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
 		if err != nil {
 			return nil, changelog.Log{}, err
 		}
-	} else if c.ID().User() != opts.ID.User() {
+	} else if c.UserID() != GetUserID(opts.ID) {
 		return nil, changelog.Log{}, errors.New("invalid user id")
 	}
 
 	if err := c.tryActivate(opts.Transport); err == nil {
 
-		s.clients[c.ID().String()] = c
-		delete(s.inactiveClients, c.ID().String())
+		s.clients[c.ID()] = c
+		delete(s.inactiveClients, c.ID())
 
-		if opts.ID.User() != "" {
-			userID := opts.ID.User()
+		userID := GetUserID(opts.ID)
+		if userID != "" {
 			user, ok := s.users[userID]
 			if ok {
 				user[c] = struct{}{}
@@ -370,7 +362,7 @@ func (s *shard) Connect(opts ConnectOptions) (*Client, changelog.Log, error) {
 			}
 		}
 
-		res.ClientsUp = append(res.ClientsUp, c.ID().String())
+		res.ClientsUp = append(res.ClientsUp, c.ID())
 
 		return c, res, nil
 	} else {
@@ -386,15 +378,15 @@ func (s *shard) InactivateClient(client *Client) (res changelog.Log) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if realClient, exists := s.clients[string(client.ID())]; exists {
+	if realClient, exists := s.clients[client.ID()]; exists {
 		if realClient != client {
 			return
 		}
 		if err := client.tryInactivate(); err != nil {
 			return
 		}
-		res.ClientsDown = append(res.ClientsDown, client.ID().String())
-		s.inactiveClients[client.ID().String()] = time.Now().UnixNano()
+		res.ClientsDown = append(res.ClientsDown, client.ID())
+		s.inactiveClients[client.ID()] = time.Now().UnixNano()
 	}
 	return
 }
@@ -441,8 +433,8 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 						}
 					}
 				}
-				if subs, ok := s.subs[string(client.ID())]; ok {
-					delete(s.subs, string(client.ID()))
+				if subs, ok := s.subs[client.ID()]; ok {
+					delete(s.subs, client.ID())
 					for topicID, sub := range subs {
 						if sub.state == activeSub {
 							topic := s.topics[topicID]
@@ -454,8 +446,8 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 					}
 				}
 
-				s.invalidClients[string(client.ID())] = opts.Time
-				delete(s.inactiveClients, string(client.ID()))
+				s.invalidClients[client.ID()] = opts.Time
+				delete(s.inactiveClients, client.ID())
 			}
 		}
 	}
@@ -463,7 +455,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 	for _, clientID := range opts.Clients {
 		if client, ok := s.clients[clientID]; ok {
 			client.forceInvalidate()
-			delete(s.clients, string(client.ID()))
+			delete(s.clients, client.ID())
 			if subs, ok := s.subs[clientID]; ok {
 				delete(s.subs, clientID)
 				for topicID, sub := range subs {
@@ -476,7 +468,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 					}
 				}
 			}
-			if userID := client.ID().User(); userID != "" {
+			if userID := client.UserID(); userID != "" {
 				if user, ok := s.users[userID]; ok {
 					delete(user, client)
 					if userSubs, ok := s.userSubs[userID]; ok {
@@ -502,8 +494,8 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 }
 
 func (s *shard) Clean() (res changelog.Log) {
-	inactiveClients := []string{}
-	invalidClients := []string{}
+	var inactiveClients []string
+	var invalidClients []string
 	now := time.Now().UnixNano()
 	invalidationTime := int64(s.clientConfig.InvalidationTime)
 	clientTTl := int64(s.clientConfig.TTL)
@@ -548,7 +540,7 @@ func (s *shard) Clean() (res changelog.Log) {
 						}
 					}
 				}
-				if userID := client.ID().User(); userID != "" {
+				if userID := client.UserID(); userID != "" {
 					if user, ok := s.users[userID]; ok {
 						delete(user, client)
 						if userSubs, ok := s.userSubs[userID]; ok {

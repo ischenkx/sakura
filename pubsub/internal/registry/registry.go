@@ -1,65 +1,63 @@
-package distributor
+package registry
 
 import (
 	"github.com/RomanIschenko/notify/internal"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
-	"github.com/RomanIschenko/notify/pubsub/client_id"
 )
 
-type Distributor struct {
-	registry topicsRegistry
+type Registry struct {
+	topics      topicsRegistry
 	sharderPool *sharderPool
-	shards int
+	shards      int
 }
 
-func (d *Distributor) TopicsAmount() int {
-	return d.registry.Amount()
+func (d *Registry) TopicsAmount() int {
+	return d.topics.Amount()
 }
 
-func (d *Distributor) AggregateSharded(b Batch, f func(int, Batch) changelog.Log) (r changelog.Log) {
+func (d *Registry) AggregateSharded(b Batch, f func(int, Batch) changelog.Log) (r changelog.Log) {
 	sharder := d.sharderPool.Get()
 	for _, clientID := range b.Clients {
-		id := clientid.ID(clientID)
-		hash, err := id.Hash()
+		hash, err := pubsub.HashClientID(clientID)
 		if err != nil {
 			continue
 		}
 		shard := hash % d.shards
 		sharder.AddClients(shard, clientID)
 	}
-
 	for _, userID := range b.Users {
 		hash := internal.Hash([]byte(userID))
 		shard := hash % d.shards
 		sharder.AddClients(shard, userID)
 	}
-	d.registry.loadTopics(b.Topics, sharder)
+	d.topics.loadTopics(b.Topics, sharder)
 	sharder.Flush(func(s int, b Batch) {
 		tmpRes := f(s, b)
-		d.registry.processResult(s, tmpRes)
+		d.topics.processResult(s, tmpRes)
 		r.Merge(tmpRes)
 	})
 	d.sharderPool.Put(sharder)
 	return
 }
 
-func (d *Distributor) ProcessResult(s int, r changelog.Log) {
-	d.registry.processResult(s, r)
+func (d *Registry) ProcessResult(s int, r changelog.Log) {
+	d.topics.processResult(s, r)
 }
 
-func (d *Distributor) Aggregate(f func(int) changelog.Log) (r changelog.Log) {
+func (d *Registry) Aggregate(f func(int) changelog.Log) (r changelog.Log) {
 	for i := 0; i < d.shards; i++ {
 		res := f(i)
 		r.Merge(res)
-		d.registry.processResult(i, res)
+		d.topics.processResult(i, res)
 	}
 	return
 }
 
-func (d *Distributor) Topics() []string {
+func (d *Registry) Topics() []string {
 	topics := make([]string, 0, d.TopicsAmount())
 
-	for _, bucket := range d.registry {
+	for _, bucket := range d.topics {
 		bucket.mu.RLock()
 		for id := range bucket.b {
 			topics = append(topics, id)
@@ -70,9 +68,9 @@ func (d *Distributor) Topics() []string {
 	return topics
 }
 
-func New(shards int) *Distributor {
-	return &Distributor{
-		registry:    newTopicsRegistry(16),
+func New(shards int) *Registry {
+	return &Registry{
+		topics:      newTopicsRegistry(16),
 		shards:      shards,
 		sharderPool: newSharderPool(shards),
 	}

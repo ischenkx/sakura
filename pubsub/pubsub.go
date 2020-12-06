@@ -3,7 +3,7 @@ package pubsub
 import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
-	"github.com/RomanIschenko/notify/pubsub/internal/distributor"
+	"github.com/RomanIschenko/notify/pubsub/internal/registry"
 	"time"
 )
 
@@ -31,7 +31,7 @@ type Pubsub struct {
 	config     Config
 	events 	   *eventsHub
 	nsRegistry *namespaceRegistry
-	distrib *distributor.Distributor
+	distrib *registry.Registry
 }
 
 func (p *Pubsub) Events(ctx context.Context) *ContextEvents {
@@ -43,7 +43,6 @@ func (p *Pubsub) Clean() {
 		shard := p.shards[s]
 		return shard.Clean()
 	})
-
 	if !res.Empty() {
 		p.events.emitChange(res)
 	}
@@ -53,12 +52,10 @@ func (p *Pubsub) Metrics() Metrics {
 	metrics := &Metrics{
 		Topics: p.distrib.TopicsAmount(),
 	}
-
 	for _, shard := range p.shards {
 		sm := shard.Metrics()
 		metrics.Merge(&sm)
 	}
-
 	return *metrics
 }
 
@@ -66,15 +63,11 @@ func (p *Pubsub) NS() *namespaceRegistry {
 	return p.nsRegistry
 }
 
-func  (p *Pubsub) Publish(opts PublishOptions) (Publication, PublishLog, error) {
+func  (p *Pubsub) Publish(opts PublishOptions) error {
 	opts.validate()
-
-	var log PublishLog
-	log.Publication = NewPublication(opts.Payload)
-
-	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
-
-	p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
+	p.events.emitBeforePublish(opts)
+	p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Topics = b.Topics
 		opts.Users = b.Users
@@ -82,15 +75,14 @@ func  (p *Pubsub) Publish(opts PublishOptions) (Publication, PublishLog, error) 
 		shard.Publish(opts)
 		return changelog.Log{}
 	})
-	p.events.emitPublish(log.Publication, opts)
-	return log.Publication, log, nil
+	p.events.emitPublish(opts)
+	return nil
 }
 
 func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
 	opts.validate()
-	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
-
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Users = b.Users
 		opts.Clients = b.Clients
@@ -102,8 +94,8 @@ func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
 
 func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
 	opts.validate()
-	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Topics = b.Topics
 		opts.Users = b.Users
@@ -115,12 +107,14 @@ func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
 }
 
 func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
-	h, err := opts.ID.Hash()
+	if opts.ID == "" {
+		opts.ID = NewClientID("")
+	}
+	h, err := HashClientID(opts.ID)
 	if err != nil {
 		return nil, err
 	}
 	shard := p.shards[h % len(p.shards)]
-
 	c, res, err := shard.Connect(opts)
 	p.events.emitConnect(opts, c, res)
 	return c, err
@@ -128,8 +122,8 @@ func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
 
 func (p *Pubsub) Disconnect(opts DisconnectOptions) changelog.Log {
 	opts.validate()
-	b := distributor.Batch{Clients: opts.Clients, Users: opts.Users}
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b distributor.Batch) changelog.Log {
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Users = b.Users
 		opts.Clients = b.Clients
@@ -206,6 +200,6 @@ func New(config Config) *Pubsub {
 		config:     config,
 		events:     newEventsHub(),
 		nsRegistry: nsRegistry,
-		distrib: distributor.New(config.Shards),
+		distrib:    registry.New(config.Shards),
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"github.com/RomanIschenko/notify/cluster/broker"
 	"github.com/RomanIschenko/notify/cluster/internal/protocol"
 	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/client_id"
 )
 
 type Config struct {
@@ -42,7 +41,7 @@ func (api *Api) Unsubscribe(opts pubsub.UnsubscribeOptions) error {
 	return api.brokerManager.WritePubsubOptions(opts)
 }
 
-func (api *Api) Authorize(token string) (clientid.ID, error){
+func (api *Api) Authorize(token string) (string, error){
 	return api.auth.Authorize(token)
 }
 

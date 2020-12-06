@@ -34,7 +34,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	}
 
 	conn := notify.IncomingConnection{
-		Opts: pubsub.Connect{
+		Opts: pubsub.ConnectOptions{
 			Transport: t,
 			Time:      time.Now().UnixNano(),
 		},

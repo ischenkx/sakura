@@ -1,4 +1,4 @@
-package distributor
+package registry
 
 import (
 	"github.com/RomanIschenko/notify/pubsub/changelog"
@@ -15,8 +15,6 @@ func (p *topicsRegistry) hash(d []byte) (int, error) {
 		return 0, err
 	}
 	return int(h.Sum32()), nil
-
-	//return int(d[0]), nil
 }
 
 func (p *topicsRegistry) Amount() int {

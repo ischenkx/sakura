@@ -3,7 +3,6 @@ package pubsub
 import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
-	clientid "github.com/RomanIschenko/notify/pubsub/client_id"
 	"github.com/google/uuid"
 	"sync"
 )
@@ -53,24 +52,55 @@ func (hub *eventsHub) ctxHub(ctx context.Context) *ContextEvents {
 func newCtxHub() *ContextEvents {
 	return &ContextEvents{
 		onChange: map[string]func(arg0 changelog.Log){},
-		onPublish: map[string]func(arg0 Publication, arg1 PublishOptions){},
+		onPublish: map[string]func(arg1 PublishOptions){},
 		onSubscribe: map[string]func(arg0 SubscribeOptions, arg1 changelog.Log){},
 		onUnsubscribe: map[string]func(arg0 UnsubscribeOptions, arg1 changelog.Log){},
 		onConnect: map[string]func(arg0 ConnectOptions, arg1 *Client, arg2 changelog.Log){},
 		onDisconnect: map[string]func(arg0 DisconnectOptions, arg2 changelog.Log){},
-		onInactivate: map[string]func(arg0 clientid.ID){},
+		onInactivate: map[string]func(arg0 string){},
 	}
 }
 
 type ContextEvents struct {
 	mu sync.RWMutex
+	onBeforePublish map[string]func(arg0 PublishOptions)
 	onChange map[string]func(arg0 changelog.Log)
-	onPublish map[string]func(arg0 Publication, arg1 PublishOptions)
+	onPublish map[string]func(arg1 PublishOptions)
 	onSubscribe map[string]func(arg0 SubscribeOptions, arg1 changelog.Log)
 	onUnsubscribe map[string]func(arg0 UnsubscribeOptions, arg1 changelog.Log)
 	onConnect map[string]func(arg0 ConnectOptions, arg1 *Client, arg2 changelog.Log)
 	onDisconnect map[string]func(arg0 DisconnectOptions, arg2 changelog.Log)
-	onInactivate map[string]func(arg0 clientid.ID)
+	onInactivate map[string]func(arg0 string)
+}
+
+func (hub *ContextEvents) emitBeforePublish(arg0 PublishOptions) {
+	hub.mu.RLock()
+	for _, handler := range hub.onBeforePublish {
+		handler(arg0)
+	}
+	hub.mu.RUnlock()
+}
+func (hub *eventsHub) emitBeforePublish(arg0 PublishOptions) {
+	hub.mu.RLock()
+	for _, h := range hub.ctxHubs {
+		h.emitBeforePublish(arg0)
+	}
+	hub.mu.RUnlock()
+}
+func (hub *ContextEvents) OnBeforePublish(f func(arg0 PublishOptions)) EventHandle {
+
+	hub.mu.Lock()
+	uid := uuid.New().String()
+	hub.onBeforePublish[uid] = f
+	hub.mu.Unlock()
+
+	return EventHandle{
+		closer: func() {
+			hub.mu.Lock()
+			defer hub.mu.Unlock()
+			delete(hub.onBeforePublish, uid)
+		},
+	}
 }
 
 func (hub *ContextEvents) emitChange(arg0 changelog.Log) {
@@ -104,22 +134,22 @@ func (hub *ContextEvents) OnChange(f func(arg0 changelog.Log)) EventHandle {
 	}
 }
 
-func (hub *ContextEvents) emitPublish(arg0 Publication, arg1 PublishOptions) {
+func (hub *ContextEvents) emitPublish(arg1 PublishOptions) {
 	hub.mu.RLock()
 	for _, handler := range hub.onPublish {
-		handler(arg0, arg1)
+		handler(arg1)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsHub) emitPublish(arg0 Publication, arg1 PublishOptions) {
+func (hub *eventsHub) emitPublish(arg1 PublishOptions) {
 	hub.mu.RLock()
 	for _, h := range hub.ctxHubs {
-		h.emitPublish(arg0, arg1)
+		h.emitPublish(arg1)
 
 	}
 	hub.mu.RUnlock()
 }
-func (hub *ContextEvents) OnPublish(f func(arg0 Publication, arg1 PublishOptions)) EventHandle {
+func (hub *ContextEvents) OnPublish(f func(arg1 PublishOptions)) EventHandle {
 
 	hub.mu.Lock()
 	uid := uuid.New().String()
@@ -259,14 +289,14 @@ func (hub *ContextEvents) OnDisconnect(f func(arg0 DisconnectOptions, arg2 chang
 	}
 }
 
-func (hub *ContextEvents) emitInactivate(arg0 clientid.ID) {
+func (hub *ContextEvents) emitInactivate(arg0 string) {
 	hub.mu.RLock()
 	for _, handler := range hub.onInactivate {
 		handler(arg0)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsHub) emitInactivate(arg0 clientid.ID) {
+func (hub *eventsHub) emitInactivate(arg0 string) {
 	hub.mu.RLock()
 	for _, h := range hub.ctxHubs {
 		h.emitInactivate(arg0)
@@ -274,7 +304,7 @@ func (hub *eventsHub) emitInactivate(arg0 clientid.ID) {
 	}
 	hub.mu.RUnlock()
 }
-func (hub *ContextEvents) OnInactivate(f func(arg0 clientid.ID)) EventHandle {
+func (hub *ContextEvents) OnInactivate(f func(arg0 string)) EventHandle {
 
 	hub.mu.Lock()
 	uid := uuid.New().String()

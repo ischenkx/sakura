@@ -1,17 +1,17 @@
-package distributor
+package registry
 
 import (
 	"math"
 )
 
-// INT_PHI is for scrambling the keys
-const INT_PHI = 0x9E3779B9
+// intPhi is for scrambling the keys
+const intPhi = 0x9E3779B9
 
-// FREE_KEY is the 'free' key
-const FREE_KEY = 0
+// freeKey is the 'free' key
+const freeKey = 0
 
 func phiMix(x int64) int64 {
-	h := x * INT_PHI
+	h := x * intPhi
 	return h ^ (h >> 16)
 }
 
@@ -78,7 +78,7 @@ func newInt2Int(size int, fillFactor float64) *int2int {
 
 // Get returns the value if the key is found.
 func (m *int2int) Get(key int64) (int64, bool) {
-	if key == FREE_KEY {
+	if key == freeKey {
 		if m.hasFreeKey {
 			return m.freeVal, true
 		}
@@ -91,7 +91,7 @@ func (m *int2int) Get(key int64) (int64, bool) {
 	}
 	k := m.data[ptr]
 
-	if k == FREE_KEY { // end of chain already
+	if k == freeKey { // end of chain already
 		return 0, false
 	}
 	if k == key { // we check FREE prior to this call
@@ -101,7 +101,7 @@ func (m *int2int) Get(key int64) (int64, bool) {
 	for {
 		ptr = (ptr + 2) & m.mask2
 		k = m.data[ptr]
-		if k == FREE_KEY {
+		if k == freeKey {
 			return 0, false
 		}
 		if k == key {
@@ -112,7 +112,7 @@ func (m *int2int) Get(key int64) (int64, bool) {
 
 // Put adds or updates key with value val.
 func (m *int2int) Put(key int64, val int64) {
-	if key == FREE_KEY {
+	if key == freeKey {
 		if !m.hasFreeKey {
 			m.size++
 		}
@@ -124,7 +124,7 @@ func (m *int2int) Put(key int64, val int64) {
 	ptr := (phiMix(key) & m.mask) << 1
 	k := m.data[ptr]
 
-	if k == FREE_KEY { // end of chain already
+	if k == freeKey { // end of chain already
 		m.data[ptr] = key
 		m.data[ptr+1] = val
 		if m.size >= m.threshold {
@@ -142,7 +142,7 @@ func (m *int2int) Put(key int64, val int64) {
 		ptr = (ptr + 2) & m.mask2
 		k = m.data[ptr]
 
-		if k == FREE_KEY {
+		if k == freeKey {
 			m.data[ptr] = key
 			m.data[ptr+1] = val
 			if m.size >= m.threshold {
@@ -161,7 +161,7 @@ func (m *int2int) Put(key int64, val int64) {
 
 // Del deletes a key and its value.
 func (m *int2int) Del(key int64) {
-	if key == FREE_KEY {
+	if key == freeKey {
 		m.hasFreeKey = false
 		m.size--
 		return
@@ -174,7 +174,7 @@ func (m *int2int) Del(key int64) {
 		m.shiftKeys(ptr)
 		m.size--
 		return
-	} else if k == FREE_KEY { // end of chain already
+	} else if k == freeKey { // end of chain already
 		return
 	}
 
@@ -186,7 +186,7 @@ func (m *int2int) Del(key int64) {
 			m.shiftKeys(ptr)
 			m.size--
 			return
-		} else if k == FREE_KEY {
+		} else if k == freeKey {
 			return
 		}
 
@@ -203,8 +203,8 @@ func (m *int2int) shiftKeys(pos int64) int64 {
 		pos = (last + 2) & m.mask2
 		for {
 			k = data[pos]
-			if k == FREE_KEY {
-				data[last] = FREE_KEY
+			if k == freeKey {
+				data[last] = freeKey
 				return last
 			}
 
@@ -244,7 +244,7 @@ func (m *int2int) rehash() {
 	var o int64
 	for i := 0; i < len(data); i += 2 {
 		o = data[i]
-		if o != FREE_KEY {
+		if o != freeKey {
 			m.Put(o, data[i+1])
 		}
 	}
@@ -263,12 +263,12 @@ func (m *int2int) Keys() chan int64 {
 		var k int64
 
 		if m.hasFreeKey {
-			c <- FREE_KEY // value is m.freeVal
+			c <- freeKey // value is m.freeVal
 		}
 
 		for i := 0; i < len(data); i += 2 {
 			k = data[i]
-			if k == FREE_KEY {
+			if k == freeKey {
 				continue
 			}
 			c <- k // value is data[i+1]
@@ -284,12 +284,12 @@ func (m *int2int) Iter(f func (int64, int64)) {
 	var k int64
 
 	if m.hasFreeKey {
-		f(FREE_KEY, m.freeVal)
+		f(freeKey, m.freeVal)
 	}
 
 	for i := 0; i < len(data); i += 2 {
 		k = data[i]
-		if k == FREE_KEY {
+		if k == freeKey {
 			continue
 		}
 		f(k, data[i+1])

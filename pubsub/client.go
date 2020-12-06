@@ -3,7 +3,6 @@ package pubsub
 import (
 	"errors"
 	"github.com/RomanIschenko/notify/internal/batch_queue"
-	"github.com/RomanIschenko/notify/pubsub/client_id"
 	"github.com/RomanIschenko/notify/pubsub/transport"
 	"sync"
 )
@@ -17,9 +16,10 @@ const (
 )
 
 type Client struct {
-	id             clientid.ID
+	id             string
+	userId		   string
 	queue          *batchqueue.Queue
-	hash, userHash int
+	hash		   int
 	state          ClientState
 	meta           *sync.Map
 	mu             sync.Mutex
@@ -90,32 +90,32 @@ func (c *Client) publish(p []byte) {
 	c.queue.Push(p)
 }
 
-func (c *Client) ID() clientid.ID {
+func (c *Client) ID() string {
 	return c.id
+}
+
+func (c *Client) UserID() string {
+	return c.userId
 }
 
 func (c *Client) Hash() int {
 	return c.hash
 }
 
-func (c *Client) UserHash() int {
-	return c.userHash
-}
-
 func (c *Client) Meta() *sync.Map {
 	return c.meta
 }
 
-func newClient(id clientid.ID, bufferSize int) (*Client, error) {
-	idHash, err := id.Hash()
-
+func newClient(id string, bufferSize int) (*Client, error) {
+	userId := GetUserID(id)
+	hash, err := HashClientID(id)
 	if err != nil {
 		return nil, err
 	}
-
 	return &Client{
 		id:    id,
-		hash:  idHash,
+		userId: userId,
+		hash:  hash,
 		meta:  &sync.Map{},
 		queue: batchqueue.New(bufferSize),
 		state: Inactive,

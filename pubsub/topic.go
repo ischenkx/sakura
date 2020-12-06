@@ -12,7 +12,7 @@ type topic struct {
 
 func (t topic) add(c *Client) error {
 	if t.cfg.MaxUsers != Any {
-		userID := c.ID().User()
+		userID := c.UserID()
 		if _, ok := t.users[userID]; !ok {
 			if len(t.users)+1 > t.cfg.MaxUsers {
 				return errors.New("cfg.MaxUsers is overflowed")
@@ -36,7 +36,7 @@ func (t topic) del(c *Client) (int, error) {
 	if _, ok := t.subs[c]; ok {
 		delete(t.subs, c)
 		if t.cfg.MaxUsers != Any {
-			userID := c.ID().User()
+			userID := c.UserID()
 			if counter, ok := t.users[userID]; ok {
 				counter -= 1
 				if counter <= 0 {

@@ -15,8 +15,7 @@ import (
 
 var logger = logrus.WithField("source", "cluster")
 
-// some random number
-const brokerMetaInfo = 101
+type BrokerMetaInfo struct {}
 
 func RegisterApp(ctx context.Context, b broker.Broker, app *notify.App) error {
 	if app == nil {
@@ -34,27 +33,27 @@ func RegisterApp(ctx context.Context, b broker.Broker, app *notify.App) error {
 			if err != nil {
 				logger.Error(err)
 			}
-			opts.MetaInfo = brokerMetaInfo
+			opts.MetaInfo = BrokerMetaInfo{}
 			app.Publish(opts)
 		case pubsub.SubscribeEvent:
 			opts, err := brokerManager.ReadSubscribeOptions(e)
 			if err != nil {
 				logger.Error(err)
 			}
-			opts.MetaInfo = brokerMetaInfo
+			opts.MetaInfo = BrokerMetaInfo{}
 			app.Subscribe(opts)
 		case pubsub.UnsubscribeEvent:
 			opts, err := brokerManager.ReadUnsubscribeOptions(e)
 			if err != nil {
 				logger.Error(err)
 			}
-			opts.MetaInfo = brokerMetaInfo
+			opts.MetaInfo = BrokerMetaInfo{}
 			app.Unsubscribe(opts)
 		}
 	})
 	appEvents := app.Events(ctx)
 	appEvents.OnPublish(func(p pubsub.Publication, opts pubsub.PublishOptions) {
-		if opts.MetaInfo == brokerMetaInfo {
+		if _, ok := opts.MetaInfo.(BrokerMetaInfo); ok {
 			return
 		}
 		if err := brokerManager.WritePubsubOptions(opts); err != nil {
@@ -62,7 +61,7 @@ func RegisterApp(ctx context.Context, b broker.Broker, app *notify.App) error {
 		}
 	})
 	appEvents.OnSubscribe(func(opts pubsub.SubscribeOptions, log changelog.Log) {
-		if opts.MetaInfo == brokerMetaInfo {
+		if _, ok := opts.MetaInfo.(BrokerMetaInfo); ok {
 			return
 		}
 		if err := brokerManager.WritePubsubOptions(opts); err != nil {
@@ -70,7 +69,7 @@ func RegisterApp(ctx context.Context, b broker.Broker, app *notify.App) error {
 		}
 	})
 	appEvents.OnUnsubscribe(func(opts pubsub.UnsubscribeOptions, log changelog.Log) {
-		if opts.MetaInfo == brokerMetaInfo {
+		if _, ok := opts.MetaInfo.(BrokerMetaInfo); ok {
 			return
 		}
 		if err := brokerManager.WritePubsubOptions(opts); err != nil {

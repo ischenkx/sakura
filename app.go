@@ -11,22 +11,14 @@ var logger = logrus.WithField("source", "notify_app")
 
 type ServerConfig struct {
 	Server Server
-	InactiveReaders, AcceptReaders, IncomingReaders int
+	Workers int
 	// if data handler returns non-nil error then client will be disconnected
 	DataHandler func(*App, IncomingData)
 }
 
 func (cfg *ServerConfig) validate() {
-	if cfg.InactiveReaders <= 0 {
-		cfg.InactiveReaders = runtime.NumCPU()
-	}
-
-	if cfg.AcceptReaders <= 0 {
-		cfg.AcceptReaders = runtime.NumCPU()
-	}
-
-	if cfg.IncomingReaders <= 0 {
-		cfg.IncomingReaders = runtime.NumCPU()
+	if cfg.Workers <= 0 {
+		cfg.Workers = runtime.NumCPU()
 	}
 }
 
@@ -131,7 +123,7 @@ func (app *App) startServer(ctx context.Context) {
 	}
 	app.serverConfig.validate()
 	server := app.serverConfig.Server
-	for i := 0; i < app.serverConfig.AcceptReaders; i++ {
+	for i := 0; i < app.serverConfig.Workers; i++ {
 		go func(ctx context.Context, server Server) {
 			for {
 				select {
@@ -148,7 +140,7 @@ func (app *App) startServer(ctx context.Context) {
 		}(ctx, server)
 	}
 
-	for i := 0; i < app.serverConfig.InactiveReaders; i++ {
+	for i := 0; i < app.serverConfig.Workers; i++ {
 		go func(ctx context.Context, server Server) {
 			for {
 				select {
@@ -161,14 +153,14 @@ func (app *App) startServer(ctx context.Context) {
 		}(ctx, server)
 	}
 
-	for i := 0; i < app.serverConfig.IncomingReaders; i++ {
+	for i := 0; i < app.serverConfig.Workers; i++ {
 		go func(ctx context.Context, server Server) {
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case opts := <-server.Incoming():
-					app.handle(opts)
+					go app.handle(opts)
 				}
 			}
 		}(ctx, server)
@@ -176,7 +168,7 @@ func (app *App) startServer(ctx context.Context) {
 }
 
 func (app *App) Publish(opts pubsub.PublishOptions) {
-	_, _, err := app.pubsub.Publish(opts)
+	err := app.pubsub.Publish(opts)
 	if err != nil {
 		logger.Debug("failed to publish:", err)
 		return

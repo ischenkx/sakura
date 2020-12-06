@@ -1,4 +1,4 @@
-package distributor
+package registry
 
 type shardEntry struct {
 	batch  Batch
