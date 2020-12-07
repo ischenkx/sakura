@@ -32,7 +32,6 @@ func (t *TaskContext) newTask() bool {
 	t.mu.RLock()
 	isCanceled := t.canceled
 	t.mu.RUnlock()
-
 	if isCanceled {
 		return false
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"runtime"
 )
+
 var logger = logrus.WithField("source", "notify_app")
 
 type ServerConfig struct {
@@ -15,7 +16,6 @@ type ServerConfig struct {
 	// if data handler returns non-nil error then client will be disconnected
 	DataHandler func(*App, IncomingData)
 }
-
 func (cfg *ServerConfig) validate() {
 	if cfg.Workers <= 0 {
 		cfg.Workers = runtime.NumCPU()
@@ -28,7 +28,6 @@ type Config struct {
 	ServerConfig 	ServerConfig
 	Auth			Auth
 }
-
 func (cfg *Config) validate() {
 	if cfg.ID == "" {
 		panic("cannot create app with empty id")
@@ -53,7 +52,6 @@ func (app *App) Users() []string {
 func (app *App) Topics() []string {
 	return app.pubsub.Topics()
 }
-
 
 func (app *App) ID() string {
 	return app.id

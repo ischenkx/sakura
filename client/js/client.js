@@ -48,14 +48,14 @@ class Reconnector {
 }
 
 /*
-    Transport should have methods:
-        - onmessage
-        - onerror
-        - onopen
-        - onclose
-        - connect
-        - close
-        - send
+        Transport should have methods:
+            - onmessage
+            - onerror
+            - onopen
+            - onclose
+            - connect
+            - close
+            - send
 */
 
 class Client {
