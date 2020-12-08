@@ -98,12 +98,10 @@ func DataHandler(app *notify.App, data notify.IncomingData) {
 # Roadmap
 - [x] Pub/Sub
 - [x] WebSocket transport
-- [ ] Long-Polling transport
-- [ ] Clear resending mechanics
-- [ ] Delivery guarantees (database?)
+- [x] Long-Polling transport (sockjs server)
 
 # Cluster Roadmap
 - [x] Basic cluster
-- [ ] Proper implementation of dns load-balancer
+- [ ] Proper implementation of server registry
 - [ ] Proper implementation of api service
 - [ ] Broker implementation for RabbitMQ and Kafka
