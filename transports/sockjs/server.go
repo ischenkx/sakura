@@ -56,15 +56,13 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 
 	for {
 		data, err := t.session.Recv()
-
 		if err != nil {
-			//logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
-			//fmt.Println("pushing client!!!")
+			logger.Debugf("(sockjs)session.Recv failed, inactivating connection:", err)
 			s.inactivateChan <- client
 			return
 		}
 
-		s.incomingChan <- notify.IncomingData{client, []byte(data)}
+		s.incomingChan <- notify.IncomingData{Client: client, Payload: []byte(data)}
 	}
 }
 

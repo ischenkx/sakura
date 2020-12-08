@@ -30,28 +30,23 @@ func (cfg *Config) validate() {
 type Pubsub struct {
 	shards     []*shard
 	config     Config
-	events 	   *eventsHub
+	events     *eventsRegistry
 	nsRegistry *namespaceRegistry
-	distrib *registry.Registry
+	registry   *registry.Registry
+	middlewares *middlewareRegistry
 }
 
-func (p *Pubsub) Events(ctx context.Context) *ContextEvents {
-	return p.events.ctxHub(ctx)
+func (p *Pubsub) Middlewares(ctx context.Context) *MiddlewareHub {
+	return p.middlewares.hub(ctx)
 }
 
-func (p *Pubsub) Clean() {
-	res := p.distrib.Aggregate(func(s int) changelog.Log {
-		shard := p.shards[s]
-		return shard.Clean()
-	})
-	if !res.Empty() {
-		p.events.emitChange(res)
-	}
+func (p *Pubsub) Events(ctx context.Context) *EventsHub {
+	return p.events.hub(ctx)
 }
 
 func (p *Pubsub) Metrics() Metrics {
 	metrics := &Metrics{
-		Topics: p.distrib.TopicsAmount(),
+		Topics: p.registry.TopicsAmount(),
 	}
 	for _, shard := range p.shards {
 		sm := shard.Metrics()
@@ -62,105 +57,6 @@ func (p *Pubsub) Metrics() Metrics {
 
 func (p *Pubsub) NS() *namespaceRegistry {
 	return p.nsRegistry
-}
-
-func  (p *Pubsub) Publish(opts PublishOptions) error {
-	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
-	p.events.emitBeforePublish(opts)
-	p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
-		shard := p.shards[shardIdx]
-		opts.Topics = b.Topics
-		opts.Users = b.Users
-		opts.Clients = b.Clients
-		shard.Publish(opts)
-		return changelog.Log{}
-	})
-	p.events.emitPublish(opts)
-	return nil
-}
-
-func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
-	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
-		shard := p.shards[shardIdx]
-		opts.Users = b.Users
-		opts.Clients = b.Clients
-		return shard.Subscribe(opts)
-	})
-	p.events.emitSubscribe(opts, res)
-	return res
-}
-
-func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
-	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
-		shard := p.shards[shardIdx]
-		opts.Topics = b.Topics
-		opts.Users = b.Users
-		opts.Clients = b.Clients
-		return shard.Unsubscribe(opts)
-	})
-	p.events.emitUnsubscribe(opts, res)
-	return res
-}
-
-func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
-	if opts.ID == "" {
-		opts.ID = clientid.New("")
-	}
-	h, err := clientid.Hash(opts.ID)
-	if err != nil {
-		return nil, err
-	}
-	shard := p.shards[h % len(p.shards)]
-	c, res, err := shard.Connect(opts)
-	p.events.emitConnect(opts, c, res)
-	return c, err
-}
-
-func (p *Pubsub) Disconnect(opts DisconnectOptions) changelog.Log {
-	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	res := p.distrib.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
-		shard := p.shards[shardIdx]
-		opts.Users = b.Users
-		opts.Clients = b.Clients
-		return shard.Disconnect(opts)
-	})
-	p.events.emitDisconnect(opts, res)
-	return res
-}
-
-// StartCleaner cleans the whole pubsub system
-// each Config.CleanInterval
-// It is a blocking call
-func (p *Pubsub) StartCleaner(ctx context.Context) {
-	cleaner := time.NewTicker(p.config.CleanInterval)
-	defer cleaner.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-cleaner.C:
-			p.Clean()
-		}
-	}
-}
-
-func (p *Pubsub) InactivateClient(client *Client) {
-	if client == nil {
-		return
-	}
-
-	h := client.Hash()
-	idx := h % len(p.shards)
-	shard := p.shards[idx]
-	res := shard.InactivateClient(client)
-	p.distrib.ProcessResult(idx, res)
-	p.events.emitInactivate(client.ID())
 }
 
 func (p *Pubsub) Clients() []string {
@@ -184,7 +80,120 @@ func (p *Pubsub) Users() []string {
 }
 
 func (p *Pubsub) Topics() []string {
-	return p.distrib.Topics()
+	return p.registry.Topics()
+}
+
+func  (p *Pubsub) Publish(opts PublishOptions) error {
+	opts.validate()
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
+	p.middlewares.emitPublish(&opts)
+	p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+		shard := p.shards[shardIdx]
+		opts.Topics = b.Topics
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		shard.Publish(opts)
+		return changelog.Log{}
+	})
+	p.events.emitPublish(opts)
+	return nil
+}
+
+func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
+	opts.validate()
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.middlewares.emitSubscribe(&opts)
+	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+		shard := p.shards[shardIdx]
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Subscribe(opts)
+	})
+	p.events.emitSubscribe(opts, res)
+	return res
+}
+
+func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
+	opts.validate()
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.middlewares.emitUnsubscribe(&opts)
+	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+		shard := p.shards[shardIdx]
+		opts.Topics = b.Topics
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Unsubscribe(opts)
+	})
+	p.events.emitUnsubscribe(opts, res)
+	return res
+}
+
+func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
+	if opts.ID == "" {
+		opts.ID = clientid.New("")
+	}
+	h, err := clientid.Hash(opts.ID)
+	if err != nil {
+		return nil, err
+	}
+	shard := p.shards[h % len(p.shards)]
+	p.middlewares.emitConnect(&opts)
+	c, res, err := shard.Connect(opts)
+	p.events.emitConnect(opts, c, res)
+	return c, err
+}
+
+func (p *Pubsub) Disconnect(opts DisconnectOptions) changelog.Log {
+	opts.validate()
+	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.middlewares.emitDisconnect(&opts)
+	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+		shard := p.shards[shardIdx]
+		opts.Users = b.Users
+		opts.Clients = b.Clients
+		return shard.Disconnect(opts)
+	})
+	p.events.emitDisconnect(opts, res)
+	return res
+}
+
+func (p *Pubsub) InactivateClient(client *Client) {
+	if client == nil {
+		return
+	}
+	h := client.Hash()
+	idx := h % len(p.shards)
+	shard := p.shards[idx]
+	p.middlewares.emitInactivate(client)
+	res := shard.InactivateClient(client)
+	p.registry.ProcessResult(idx, res)
+	p.events.emitInactivate(client.ID())
+}
+
+func (p *Pubsub) Clean() {
+	res := p.registry.Aggregate(func(s int) changelog.Log {
+		shard := p.shards[s]
+		return shard.Clean()
+	})
+	if !res.Empty() {
+		p.events.emitChange(res)
+	}
+}
+
+// StartCleaner cleans the whole pubsub system
+// each Config.CleanInterval
+// It is a blocking call
+func (p *Pubsub) StartCleaner(ctx context.Context) {
+	cleaner := time.NewTicker(p.config.CleanInterval)
+	defer cleaner.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-cleaner.C:
+			p.Clean()
+		}
+	}
 }
 
 func New(config Config) *Pubsub {
@@ -199,8 +208,9 @@ func New(config Config) *Pubsub {
 	return &Pubsub{
 		shards:     shards,
 		config:     config,
-		events:     newEventsHub(),
+		middlewares: newMiddlewareRegistry(),
+		events:     newEventsRegistry(),
 		nsRegistry: nsRegistry,
-		distrib:    registry.New(config.Shards),
+		registry:   registry.New(config.Shards),
 	}
 }

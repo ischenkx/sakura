@@ -118,6 +118,9 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 				}
 				sub, ok := subs[topicID]
 				if ok {
+					// if last change to client's subscription
+					// has been done later than current opts.Time
+					// then we don't need to alter the subscription
 					if sub.lastTouch > opts.Time {
 						continue
 					}
@@ -146,13 +149,13 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 				} else {
 					sub = &subscription{}
 				}
-
 				sub.lastTouch = opts.Time
 				sub.state = activeSub
-
 				for client := range user {
-					if clientSubs, ok := s.subs[client.ID()]; ok {
-						if _, ok := clientSubs[topicID]; ok {
+					clientSubs, ok := s.subs[client.ID()]
+					if ok {
+						sub, ok := clientSubs[topicID]
+						if ok && sub.lastTouch > opts.Time {
 							continue
 						}
 					}
@@ -183,12 +186,10 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 				if sub.lastTouch > opts.Time {
 					continue
 				}
-
 				if sub.state == inactiveSub {
 					sub.lastTouch = opts.Time
 					continue
 				}
-
 				if client == nil {
 					client = s.clients[clientID]
 				}
@@ -232,8 +233,10 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 				}
 
 				for client := range user {
-					if clientSubs, ok := s.subs[client.ID()]; ok {
-						if _, ok := clientSubs[topicID]; ok {
+					clientSubs, ok := s.subs[client.ID()]
+					if ok {
+						sub, ok := clientSubs[topicID]
+						if ok && sub.lastTouch > opts.Time {
 							continue
 						}
 					}
@@ -293,8 +296,10 @@ func (s *shard) Unsubscribe(opts UnsubscribeOptions) (res changelog.Log) {
 					user := s.users[userID]
 
 					for client := range user {
-						if clientSubs, ok := s.subs[client.ID()]; ok {
-							if _, ok := clientSubs[topicID]; ok {
+						clientSubs, ok := s.subs[client.ID()]
+						if ok {
+							sub, ok := clientSubs[topicID]
+							if ok && sub.lastTouch > opts.Time {
 								continue
 							}
 						}

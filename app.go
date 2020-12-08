@@ -57,7 +57,11 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Events(ctx context.Context) *pubsub.ContextEvents {
+func (app *App) Middlewares(ctx context.Context) *pubsub.MiddlewareHub {
+	return app.pubsub.Middlewares(ctx)
+}
+
+func (app *App) Events(ctx context.Context) *pubsub.EventsHub {
 	return app.pubsub.Events(ctx)
 }
 

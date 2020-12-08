@@ -1,4 +1,9 @@
 
+import { parseMessages } from './utils/parser'
+import { Reconnector } from './reconnector/reconnector'
+import { NotifySocket } from './transports/ws'
+import { NotifySockJS } from './transports/sockjs'
+
 const OPEN_EVENT = 'open'
 const MESSAGE_EVENT = 'message'
 const CLOSE_EVENT = 'close'
@@ -7,70 +12,45 @@ const ERROR_EVENT = 'error'
 const FORCIBLY_CLOSED_CLIENT = 'fc_client'
 const OPEN_CLIENT = 'o_client'
 const CLOSED_CLIENT = 'c_client'
-
-function parseMessages(buffer) {
-    let messages = []
-    while(buffer.length > 4) {
-        let length = buffer[0]|buffer[1]<<8|buffer[2]<<16|buffer[3]<<24
-        let messageBytes = buffer.slice(4, 4+length)
-        let message = String.fromCharCode(...messageBytes)
-        messages.push(message)
-        buffer = buffer.slice(4+length)
-    }
-    return messages
-}
-
-class Reconnector {
-    constructor(config) {
-        config = config || {}
-        this.timeout = config.initialTimeout || 1000
-        this.maxRetries = config.retries || 10
-        this.retriesOut = 0
-        this.fn = config.fn || (t => t * 2)
-    }
-
-    reset() {
-        this.timeout = 100
-        this.retriesOut = 0
-    }
-
-    next() {
-        return new Promise((ok, err) => {
-            if(this.retriesOut >= this.maxRetries) {
-                err('retries are out')
-                return
-            }
-            this.retriesOut += 1
-            setTimeout(ok, this.timeout)
-            this.timeout = this.fn(this.timeout)
-        })
-    }
-}
-
 /*
-    Transport should have methods:
-        - onmessage
-        - onerror
-        - onopen
-        - onclose
-        - connect
-        - close
-        - send
+        Transport should have methods:
+            - onmessage
+            - onerror
+            - onopen
+            - onclose
+            - connect
+            - close
+            - send
 */
 
-class Client {
+export class Client {
     constructor(config) {
-        config = config||{}
-        this.authData = config.auth||''
-        this.transport = config.transport
+        this.__initialize(config||{})
+    }
+
+    __initialize(config) {
+        this.auth = config.auth || ''
+        if(!config.transport) {
+            throw new Error("notify client: no transport provided")
+        }
+        
+        switch(config.transport.type) {
+            case "ws":
+                this.transport = new NotifySocket(config.transport.url, config.transport.protocols)
+            break
+            case "sockjs":
+                this.transport = new NotifySockJS(config.transport.url, config.transport.options)
+            break
+        }
+
         this.events = {}
         this.queue = []
-        this.reconnector = new Reconnector(config.reconnect)
+        this.reconnector = new Reconnector(config.reconnection)
         this.__state = CLOSED_CLIENT
     }
 
     __authenticate() {
-        this.transport.send(this.authData)
+        this.transport.send(this.auth)
     }
 
     __enqueueData(data) {
@@ -97,7 +77,6 @@ class Client {
             }
         }
     }
-
     __setupConnection() {
         this.transport.onmessage = async (data)=>{
             let messages = parseMessages(data)
@@ -129,7 +108,7 @@ class Client {
                 } catch(err) {
                     console.log(err)
                 }
-            }
+            }   
         }
         this.transport.connect()
     }
@@ -169,29 +148,3 @@ class Client {
 }
 
 
-class NotifySocket {
-    constructor(url, protocols) {
-        this.ws = null
-        this.protocols = protocols
-        this.url = url
-    }
-    connect() {
-        this.ws = new WebSocket(this.url, this.protocols)
-        this.ws.onopen = this.onopen
-        this.ws.onerror = this.onerror
-        this.ws.onclose = this.onclose
-        this.ws.onmessage = async event => {
-            if(this.onmessage) {
-                this.onmessage(new Uint8Array(await event.data.arrayBuffer()))
-            }
-        }
-    }
-    close() {
-        if(!this.ws) return
-        this.ws.close()
-    }
-    send(data) {
-        if(!this.ws) return
-        this.ws.send(data)
-    }
-}

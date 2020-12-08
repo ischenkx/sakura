@@ -1,4 +1,5 @@
 .idea
 docker_example
 codegen
+node_modules
 tests
