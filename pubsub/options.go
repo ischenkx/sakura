@@ -1,6 +1,9 @@
 package pubsub
 
-import "time"
+import (
+	"github.com/RomanIschenko/notify/pubsub/transport"
+	"time"
+)
 
 type DisconnectOptions struct {
 	Clients []string
@@ -59,6 +62,8 @@ func (t *UnsubscribeOptions) validate() {
 	}
 }
 
-
-
-
+type ConnectOptions struct {
+	Transport transport.Transport
+	ID    	  string
+	Time      int64
+}

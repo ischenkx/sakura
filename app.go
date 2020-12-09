@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/namespace"
 	"github.com/sirupsen/logrus"
 	"runtime"
 )
@@ -57,19 +58,19 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Middlewares(ctx context.Context) *pubsub.MiddlewareHub {
-	return app.pubsub.Middlewares(ctx)
+func (app *App) Proxy(ctx context.Context) *pubsub.Proxy {
+	return app.pubsub.Proxy(ctx)
 }
 
 func (app *App) Events(ctx context.Context) *pubsub.EventsHub {
 	return app.pubsub.Events(ctx)
 }
 
-func (app *App) NSConfig(ns string) (pubsub.NamespaceConfig, bool) {
+func (app *App) NSConfig(ns string) (namespace.Config, bool) {
 	return app.pubsub.NS().Get(ns)
 }
 
-func (app *App) RegisterNS(ns string, config pubsub.NamespaceConfig) {
+func (app *App) RegisterNS(ns string, config namespace.Config) {
 	app.pubsub.NS().Register(ns, config)
 }
 

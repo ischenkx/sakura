@@ -4,7 +4,8 @@ import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
 	"github.com/RomanIschenko/notify/pubsub/clientid"
-	"github.com/RomanIschenko/notify/pubsub/internal/registry"
+	"github.com/RomanIschenko/notify/pubsub/internal/aggregator"
+	"github.com/RomanIschenko/notify/pubsub/namespace"
 	"time"
 )
 
@@ -31,13 +32,13 @@ type Pubsub struct {
 	shards     []*shard
 	config     Config
 	events     *eventsRegistry
-	nsRegistry *namespaceRegistry
-	registry   *registry.Registry
-	middlewares *middlewareRegistry
+	nsRegistry *namespace.Registry
+	aggregator *aggregator.Registry
+	proxy      *proxyRegistry
 }
 
-func (p *Pubsub) Middlewares(ctx context.Context) *MiddlewareHub {
-	return p.middlewares.hub(ctx)
+func (p *Pubsub) Proxy(ctx context.Context) *Proxy {
+	return p.proxy.hub(ctx)
 }
 
 func (p *Pubsub) Events(ctx context.Context) *EventsHub {
@@ -46,7 +47,7 @@ func (p *Pubsub) Events(ctx context.Context) *EventsHub {
 
 func (p *Pubsub) Metrics() Metrics {
 	metrics := &Metrics{
-		Topics: p.registry.TopicsAmount(),
+		Topics: p.aggregator.TopicsAmount(),
 	}
 	for _, shard := range p.shards {
 		sm := shard.Metrics()
@@ -55,7 +56,7 @@ func (p *Pubsub) Metrics() Metrics {
 	return *metrics
 }
 
-func (p *Pubsub) NS() *namespaceRegistry {
+func (p *Pubsub) NS() *namespace.Registry {
 	return p.nsRegistry
 }
 
@@ -80,14 +81,14 @@ func (p *Pubsub) Users() []string {
 }
 
 func (p *Pubsub) Topics() []string {
-	return p.registry.Topics()
+	return p.aggregator.Topics()
 }
 
 func  (p *Pubsub) Publish(opts PublishOptions) error {
 	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
-	p.middlewares.emitPublish(&opts)
-	p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+	b := aggregator.Batch{Clients: opts.Clients, Users: opts.Users, Topics: opts.Topics}
+	p.proxy.emitPublish(&opts)
+	p.aggregator.AggregateSharded(b, func(shardIdx int, b aggregator.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Topics = b.Topics
 		opts.Users = b.Users
@@ -101,9 +102,9 @@ func  (p *Pubsub) Publish(opts PublishOptions) error {
 
 func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
 	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	p.middlewares.emitSubscribe(&opts)
-	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+	b := aggregator.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.proxy.emitSubscribe(&opts)
+	res := p.aggregator.AggregateSharded(b, func(shardIdx int, b aggregator.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Users = b.Users
 		opts.Clients = b.Clients
@@ -115,9 +116,9 @@ func (p *Pubsub) Subscribe(opts SubscribeOptions) changelog.Log {
 
 func (p *Pubsub) Unsubscribe(opts UnsubscribeOptions) changelog.Log {
 	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	p.middlewares.emitUnsubscribe(&opts)
-	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+	b := aggregator.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.proxy.emitUnsubscribe(&opts)
+	res := p.aggregator.AggregateSharded(b, func(shardIdx int, b aggregator.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Topics = b.Topics
 		opts.Users = b.Users
@@ -137,7 +138,7 @@ func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
 		return nil, err
 	}
 	shard := p.shards[h % len(p.shards)]
-	p.middlewares.emitConnect(&opts)
+	p.proxy.emitConnect(&opts)
 	c, res, err := shard.Connect(opts)
 	p.events.emitConnect(opts, c, res)
 	return c, err
@@ -145,9 +146,9 @@ func (p *Pubsub) Connect(opts ConnectOptions) (*Client, error) {
 
 func (p *Pubsub) Disconnect(opts DisconnectOptions) changelog.Log {
 	opts.validate()
-	b := registry.Batch{Clients: opts.Clients, Users: opts.Users}
-	p.middlewares.emitDisconnect(&opts)
-	res := p.registry.AggregateSharded(b, func(shardIdx int, b registry.Batch) changelog.Log {
+	b := aggregator.Batch{Clients: opts.Clients, Users: opts.Users}
+	p.proxy.emitDisconnect(&opts)
+	res := p.aggregator.AggregateSharded(b, func(shardIdx int, b aggregator.Batch) changelog.Log {
 		shard := p.shards[shardIdx]
 		opts.Users = b.Users
 		opts.Clients = b.Clients
@@ -164,14 +165,14 @@ func (p *Pubsub) InactivateClient(client *Client) {
 	h := client.Hash()
 	idx := h % len(p.shards)
 	shard := p.shards[idx]
-	p.middlewares.emitInactivate(client)
+	p.proxy.emitInactivate(client)
 	res := shard.InactivateClient(client)
-	p.registry.ProcessResult(idx, res)
+	p.aggregator.ProcessResult(idx, res)
 	p.events.emitInactivate(client.ID())
 }
 
 func (p *Pubsub) Clean() {
-	res := p.registry.Aggregate(func(s int) changelog.Log {
+	res := p.aggregator.Aggregate(func(s int) changelog.Log {
 		shard := p.shards[s]
 		return shard.Clean()
 	})
@@ -199,7 +200,7 @@ func (p *Pubsub) StartCleaner(ctx context.Context) {
 func New(config Config) *Pubsub {
 	config.validate()
 	shards := make([]*shard, config.Shards)
-	nsRegistry := newNamespaceRegistry()
+	nsRegistry := namespace.NewRegistry()
 
 	for i := range shards {
 		shards[i] = newShard(nsRegistry, config.ClientConfig)
@@ -208,9 +209,9 @@ func New(config Config) *Pubsub {
 	return &Pubsub{
 		shards:     shards,
 		config:     config,
-		middlewares: newMiddlewareRegistry(),
+		proxy:      newProxyRegistry(),
 		events:     newEventsRegistry(),
 		nsRegistry: nsRegistry,
-		registry:   registry.New(config.Shards),
+		aggregator: aggregator.New(config.Shards),
 	}
 }

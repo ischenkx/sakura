@@ -1,4 +1,4 @@
-package registry
+package aggregator
 
 type shardEntry struct {
 	batch  Batch

@@ -1,4 +1,4 @@
-package registry
+package aggregator
 
 import (
 	"github.com/RomanIschenko/notify/internal"

@@ -5,17 +5,17 @@ import (
 	"sync"
 )
 
-type middlewareRegistry struct {
+type proxyRegistry struct {
 	mu sync.RWMutex
-	hubs map[context.Context]*MiddlewareHub
+	hubs map[context.Context]*Proxy
 }
 
-func (r *middlewareRegistry) hub(ctx context.Context) *MiddlewareHub {
+func (r *proxyRegistry) hub(ctx context.Context) *Proxy {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	h, ok := r.hubs[ctx]
 	if !ok {
-		h = newMiddlewareHub()
+		h = newProxy()
 		r.hubs[ctx] = h
 		if ctx != nil {
 			go func() {
@@ -31,7 +31,7 @@ func (r *middlewareRegistry) hub(ctx context.Context) *MiddlewareHub {
 	return h
 }
 
-func (r *middlewareRegistry) emitConnect(opts *ConnectOptions) {
+func (r *proxyRegistry) emitConnect(opts *ConnectOptions) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -43,7 +43,7 @@ func (r *middlewareRegistry) emitConnect(opts *ConnectOptions) {
 	}
 }
 
-func (r *middlewareRegistry) emitDisconnect(opts *DisconnectOptions) {
+func (r *proxyRegistry) emitDisconnect(opts *DisconnectOptions) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -55,7 +55,7 @@ func (r *middlewareRegistry) emitDisconnect(opts *DisconnectOptions) {
 	}
 }
 
-func (r *middlewareRegistry) emitInactivate(c *Client) {
+func (r *proxyRegistry) emitInactivate(c *Client) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -67,7 +67,7 @@ func (r *middlewareRegistry) emitInactivate(c *Client) {
 	}
 }
 
-func (r *middlewareRegistry) emitPublish(opts *PublishOptions) {
+func (r *proxyRegistry) emitPublish(opts *PublishOptions) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -79,7 +79,7 @@ func (r *middlewareRegistry) emitPublish(opts *PublishOptions) {
 	}
 }
 
-func (r *middlewareRegistry) emitSubscribe(opts *SubscribeOptions) {
+func (r *proxyRegistry) emitSubscribe(opts *SubscribeOptions) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -91,7 +91,7 @@ func (r *middlewareRegistry) emitSubscribe(opts *SubscribeOptions) {
 	}
 }
 
-func (r *middlewareRegistry) emitUnsubscribe(opts *UnsubscribeOptions) {
+func (r *proxyRegistry) emitUnsubscribe(opts *UnsubscribeOptions) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, h := range r.hubs {
@@ -103,14 +103,14 @@ func (r *middlewareRegistry) emitUnsubscribe(opts *UnsubscribeOptions) {
 	}
 }
 
-func newMiddlewareRegistry() *middlewareRegistry {
-	return &middlewareRegistry{
+func newProxyRegistry() *proxyRegistry {
+	return &proxyRegistry{
 		mu:   sync.RWMutex{},
-		hubs: map[context.Context]*MiddlewareHub{},
+		hubs: map[context.Context]*Proxy{},
 	}
 }
 
-type MiddlewareHub struct {
+type Proxy struct {
 	connect []func(*ConnectOptions)
 	disconnect []func(*DisconnectOptions)
 	inactivate []func(*Client)
@@ -120,11 +120,11 @@ type MiddlewareHub struct {
 	mu sync.RWMutex
 }
 
-func newMiddlewareHub() *MiddlewareHub {
-	return &MiddlewareHub{}
+func newProxy() *Proxy {
+	return &Proxy{}
 }
 
-func (h *MiddlewareHub) OnConnect(f func(*ConnectOptions)) {
+func (h *Proxy) OnConnect(f func(*ConnectOptions)) {
 	if f == nil {
 		return
 	}
@@ -133,7 +133,7 @@ func (h *MiddlewareHub) OnConnect(f func(*ConnectOptions)) {
 	h.connect = append(h.connect, f)
 }
 
-func (h *MiddlewareHub) OnDisconnect(f func(*DisconnectOptions)) {
+func (h *Proxy) OnDisconnect(f func(*DisconnectOptions)) {
 	if f == nil {
 		return
 	}
@@ -142,7 +142,7 @@ func (h *MiddlewareHub) OnDisconnect(f func(*DisconnectOptions)) {
 	h.disconnect = append(h.disconnect, f)
 }
 
-func (h *MiddlewareHub) OnInactivation(f func(*Client)) {
+func (h *Proxy) OnInactivation(f func(*Client)) {
 	if f == nil {
 		return
 	}
@@ -151,7 +151,7 @@ func (h *MiddlewareHub) OnInactivation(f func(*Client)) {
 	h.inactivate = append(h.inactivate, f)
 }
 
-func (h *MiddlewareHub) OnSubscribe(f func(*SubscribeOptions)) {
+func (h *Proxy) OnSubscribe(f func(*SubscribeOptions)) {
 	if f == nil {
 		return
 	}
@@ -160,7 +160,7 @@ func (h *MiddlewareHub) OnSubscribe(f func(*SubscribeOptions)) {
 	h.subscribe = append(h.subscribe, f)
 }
 
-func (h *MiddlewareHub) OnUnsubscribe(f func(*UnsubscribeOptions)) {
+func (h *Proxy) OnUnsubscribe(f func(*UnsubscribeOptions)) {
 	if f == nil {
 		return
 	}
@@ -169,7 +169,7 @@ func (h *MiddlewareHub) OnUnsubscribe(f func(*UnsubscribeOptions)) {
 	h.unsubscribe = append(h.unsubscribe, f)
 }
 
-func (h *MiddlewareHub) OnPublish(f func(*PublishOptions)) {
+func (h *Proxy) OnPublish(f func(*PublishOptions)) {
 	if f == nil {
 		return
 	}

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
 	"github.com/RomanIschenko/notify/pubsub/clientid"
+	"github.com/RomanIschenko/notify/pubsub/namespace"
+	"github.com/RomanIschenko/notify/pubsub/internal/topic"
 	"github.com/google/uuid"
 	"sync"
 	"time"
@@ -48,7 +50,7 @@ type shard struct {
 	id				string
 	clients  		map[string]*Client
 	users			map[string]map[*Client]struct{}
-	topics 	 		map[string]topic
+	topics 	 		map[string]topic.topic
 	// client id => unix nanoseconds
 	// inactive clients are clients which are disconnected for a short time
 	// (example: transport - websocket, internet issues cause client disconnections
@@ -60,7 +62,7 @@ type shard struct {
 	invalidClients  map[string]int64
 	subs	 		map[string]map[string]*subscription
 	userSubs 		map[string]map[string]*subscription
-	nsRegistry 		*namespaceRegistry
+	nsRegistry 		*namespace.namespaceRegistry
 	clientConfig	ClientConfig
 	mu 				sync.RWMutex
 }
@@ -413,7 +415,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 		}
 		s.clients = map[string]*Client{}
 		s.users = map[string]map[*Client]struct{}{}
-		s.topics = map[string]topic{}
+		s.topics = map[string]topic.topic{}
 		s.invalidClients = map[string]int64{}
 		s.inactiveClients = map[string]int64{}
 		s.userSubs = map[string]map[string]*subscription{}
@@ -603,12 +605,12 @@ func (s *shard) Metrics() (m Metrics) {
 	return
 }
 
-func newShard(nsRegistry *namespaceRegistry, clientCfg ClientConfig) *shard {
+func newShard(nsRegistry *namespace.namespaceRegistry, clientCfg ClientConfig) *shard {
 	clientCfg.validate()
 	return &shard{
 		id: uuid.New().String(),
 		clients: 		 map[string]*Client{},
-		topics: 		 map[string]topic{},
+		topics: 		 map[string]topic.topic{},
 		inactiveClients: map[string]int64{},
 		invalidClients:  map[string]int64{},
 		subs: 			 map[string]map[string]*subscription{},

@@ -1,4 +1,4 @@
-package registry
+package aggregator
 
 type Batch struct {
 	Clients, Users, Topics []string

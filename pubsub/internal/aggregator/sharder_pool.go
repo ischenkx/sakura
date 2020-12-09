@@ -1,4 +1,4 @@
-package registry
+package aggregator
 
 import "sync"
 
