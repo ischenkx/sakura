@@ -7,7 +7,7 @@
     "webpack-cli": "^4.2.0"
   },
   "name": "js-notify",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "client for my go real-time library",
   "main": "index.js",
   "dependencies": {

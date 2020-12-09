@@ -3,6 +3,10 @@ export class NotifySocket {
         this.ws = null
         this.protocols = protocols
         this.url = url
+        this.onopen = null;
+        this.onerror = null;
+        this.onclose = null;
+        this.onmessage = null;
     }
     connect() {
         this.ws = new WebSocket(this.url, this.protocols)

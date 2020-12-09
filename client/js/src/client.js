@@ -36,10 +36,10 @@ export class Client {
         
         switch(config.transport.type) {
             case "ws":
-                this.tranport = new NotifySocket(config.transport.url, config.transport.protocols)
+                this.transport = new NotifySocket(config.transport.url, config.transport.protocols)
             break
             case "sockjs":
-                this.transport = new NotifySockJS(config.transport.url)
+                this.transport = new NotifySockJS(config.transport.url, config.transport.options)
             break
         }
 
@@ -77,9 +77,7 @@ export class Client {
             }
         }
     }
-
     __setupConnection() {
-
         this.transport.onmessage = async (data)=>{
             let messages = parseMessages(data)
             for(let mes of messages) {
@@ -108,7 +106,7 @@ export class Client {
                     await this.reconnector.next()
                     this.__setupConnection()
                 } catch(err) {
-                    console.error(err)
+                    console.log(err)
                 }
             }   
         }
