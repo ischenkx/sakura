@@ -7,6 +7,7 @@ import (
 	authmock "github.com/RomanIschenko/notify/auth/mock"
 	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/pubsub/namespace"
 	sjs "github.com/RomanIschenko/notify/transports/sockjs"
 	"github.com/igm/sockjs-go/sockjs"
 	"github.com/sirupsen/logrus"
@@ -62,14 +63,19 @@ func main() {
 	app.Events(context.Background()).
 		OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
 			app.Subscribe(pubsub.SubscribeOptions{
-				Topics:   []string{"chat"},
+				Topics:   []string{"chat:global"},
 				Clients:  []string{client.ID()},
 			})
 			app.Publish(pubsub.PublishOptions{
-				Topics:   []string{"chat"},
+				Topics:   []string{"chat:global"},
 				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
 			})
 		})
+
+
+	app.NamespaceRegistry().Register("chat", namespace.Config{
+		MaxClients: 2,
+	})
 
 	app.Start(context.Background())
 
@@ -89,7 +95,7 @@ func main() {
 
 func DataHandler(app *notify.App, data notify.IncomingData) {
 	app.Publish(pubsub.PublishOptions{
-		Topics:   []string{"chat"},
+		Topics:   []string{"chat:global"},
 		Payload:  data.Payload,
 	})
 }

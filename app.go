@@ -12,11 +12,12 @@ import (
 var logger = logrus.WithField("source", "notify_app")
 
 type ServerConfig struct {
-	Server Server
+	Server  Server
 	Workers int
 	// if data handler returns non-nil error then client will be disconnected
 	DataHandler func(*App, IncomingData)
 }
+
 func (cfg *ServerConfig) validate() {
 	if cfg.Workers <= 0 {
 		cfg.Workers = runtime.NumCPU()
@@ -24,10 +25,10 @@ func (cfg *ServerConfig) validate() {
 }
 
 type Config struct {
-	ID       		string
-	PubSubConfig  	pubsub.Config
-	ServerConfig 	ServerConfig
-	Auth			Auth
+	ID           string
+	PubSubConfig pubsub.Config
+	ServerConfig ServerConfig
+	Auth         Auth
 }
 func (cfg *Config) validate() {
 	if cfg.ID == "" {
@@ -38,48 +39,8 @@ func (cfg *Config) validate() {
 type App struct {
 	id           string
 	pubsub       *pubsub.Pubsub
-	auth 		 Auth
+	auth         Auth
 	serverConfig ServerConfig
-}
-
-func (app *App) Clients() []string {
-	return app.pubsub.Clients()
-}
-
-func (app *App) Users() []string {
-	return app.pubsub.Users()
-}
-
-func (app *App) Topics() []string {
-	return app.pubsub.Topics()
-}
-
-func (app *App) ID() string {
-	return app.id
-}
-
-func (app *App) Proxy(ctx context.Context) *pubsub.Proxy {
-	return app.pubsub.Proxy(ctx)
-}
-
-func (app *App) Events(ctx context.Context) *pubsub.EventsHub {
-	return app.pubsub.Events(ctx)
-}
-
-func (app *App) NSConfig(ns string) (namespace.Config, bool) {
-	return app.pubsub.NS().Get(ns)
-}
-
-func (app *App) RegisterNS(ns string, config namespace.Config) {
-	app.pubsub.NS().Register(ns, config)
-}
-
-func (app *App) UnregisterNS(ns string) {
-	app.pubsub.NS().Unregister(ns)
-}
-
-func (app *App) Metrics() pubsub.Metrics {
-	return app.pubsub.Metrics()
 }
 
 func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client, error) {
@@ -168,6 +129,38 @@ func (app *App) startServer(ctx context.Context) {
 			}
 		}(ctx, server)
 	}
+}
+
+func (app *App) Clients() []string {
+	return app.pubsub.Clients()
+}
+
+func (app *App) Users() []string {
+	return app.pubsub.Users()
+}
+
+func (app *App) Topics() []string {
+	return app.pubsub.Topics()
+}
+
+func (app *App) ID() string {
+	return app.id
+}
+
+func (app *App) Proxy(ctx context.Context) *pubsub.Proxy {
+	return app.pubsub.Proxy(ctx)
+}
+
+func (app *App) Events(ctx context.Context) *pubsub.EventsHub {
+	return app.pubsub.Events(ctx)
+}
+
+func (app *App) NamespaceRegistry() *namespace.Registry {
+	return app.pubsub.NamespaceRegistry()
+}
+
+func (app *App) Metrics() pubsub.Metrics {
+	return app.pubsub.Metrics()
 }
 
 func (app *App) Publish(opts pubsub.PublishOptions) {

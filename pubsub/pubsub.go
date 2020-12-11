@@ -56,7 +56,7 @@ func (p *Pubsub) Metrics() Metrics {
 	return *metrics
 }
 
-func (p *Pubsub) NS() *namespace.Registry {
+func (p *Pubsub) NamespaceRegistry() *namespace.Registry {
 	return p.nsRegistry
 }
 

@@ -3,7 +3,7 @@ package clientid
 import (
 	"errors"
 	"fmt"
-	"github.com/RomanIschenko/notify/internal"
+	"github.com/RomanIschenko/notify/pubsub/internal/hasher"
 	"github.com/google/uuid"
 )
 
@@ -40,5 +40,5 @@ func Hash(id string) (int, error) {
 	if len(id) > Length {
 		id = id[Length:]
 	}
-	return internal.Hash([]byte(id)), nil
+	return hasher.Hash([]byte(id)), nil
 }

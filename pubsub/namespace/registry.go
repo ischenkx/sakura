@@ -1,15 +1,12 @@
 package namespace
 
 import (
-	"github.com/RomanIschenko/notify/pubsub/internal/topic"
 	"sync"
 )
 
 const (
 	Any = 0
 )
-
-var DefaultConfig = Config{}
 
 type Config struct {
 	MaxClients, MaxUsers int
@@ -20,15 +17,14 @@ type Registry struct {
 	mu sync.RWMutex
 }
 
-func (r *Registry) generate(topicID string) topic.Topic {
+func (r *Registry) GetByTopic(topicID string) (cfg Config) {
 	_, ns := parseTopicData(topicID)
-	cfg := DefaultConfig
 	if ns != "" {
 		if rcfg, ok := r.Get(ns); ok {
 			cfg = rcfg
 		}
 	}
-	return topic.New(cfg)
+	return
 }
 
 func (r *Registry) Register(ns string, cfg Config) {

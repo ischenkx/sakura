@@ -2,8 +2,8 @@ package pubsub
 
 import (
 	"errors"
-	"github.com/RomanIschenko/notify/internal/batch_queue"
 	"github.com/RomanIschenko/notify/pubsub/clientid"
+	"github.com/RomanIschenko/notify/pubsub/internal/batch_queue"
 	"github.com/RomanIschenko/notify/pubsub/transport"
 	"sync"
 )
@@ -114,11 +114,11 @@ func newClient(id string, bufferSize int) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		id:    id,
+		id:     id,
 		userId: userId,
-		hash:  hash,
-		meta:  &sync.Map{},
-		queue: batchqueue.New(bufferSize),
-		state: Inactive,
+		hash:   hash,
+		meta:   &sync.Map{},
+		queue:  batchqueue.New(bufferSize),
+		state:  Inactive,
 	}, nil
 }

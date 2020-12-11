@@ -5,7 +5,6 @@ import (
 	"github.com/RomanIschenko/notify/pubsub/changelog"
 	"github.com/RomanIschenko/notify/pubsub/clientid"
 	"github.com/RomanIschenko/notify/pubsub/namespace"
-	"github.com/RomanIschenko/notify/pubsub/internal/topic"
 	"github.com/google/uuid"
 	"sync"
 	"time"
@@ -50,7 +49,7 @@ type shard struct {
 	id				string
 	clients  		map[string]*Client
 	users			map[string]map[*Client]struct{}
-	topics 	 		map[string]topic.topic
+	topics 	 		map[string]topic
 	// client id => unix nanoseconds
 	// inactive clients are clients which are disconnected for a short time
 	// (example: transport - websocket, internet issues cause client disconnections
@@ -62,7 +61,7 @@ type shard struct {
 	invalidClients  map[string]int64
 	subs	 		map[string]map[string]*subscription
 	userSubs 		map[string]map[string]*subscription
-	nsRegistry 		*namespace.namespaceRegistry
+	nsRegistry 		*namespace.Registry
 	clientConfig	ClientConfig
 	mu 				sync.RWMutex
 }
@@ -87,8 +86,8 @@ func (s *shard) Publish(opts PublishOptions) {
 	}
 
 	for _, topicID := range opts.Topics {
-		if topic, ok := s.topics[topicID]; ok {
-			for client := range topic.subscribers() {
+		if t, ok := s.topics[topicID]; ok {
+			for client := range t.subscribers() {
 				client.publish(opts.Payload)
 			}
 		}
@@ -104,10 +103,11 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 	defer s.mu.Unlock()
 
 	for _, topicID := range opts.Topics {
-		topic, ok := s.topics[topicID]
+		t, ok := s.topics[topicID]
 		if !ok {
-			topic = s.nsRegistry.generate(topicID)
-			s.topics[topicID] = topic
+			cfg := s.nsRegistry.GetByTopic(topicID)
+			t = newTopic(cfg)
+			s.topics[topicID] = t
 			res.TopicsUp = append(res.TopicsUp, topicID)
 		}
 
@@ -133,7 +133,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 				sub.lastTouch = opts.Time
 				sub.state = activeSub
 				// todo: handle error
-				topic.add(client)
+				t.add(client)
 			}
 		}
 		for _, userID := range opts.Users {
@@ -161,7 +161,7 @@ func (s *shard) Subscribe(opts SubscribeOptions) (res changelog.Log) {
 							continue
 						}
 					}
-					topic.add(client)
+					t.add(client)
 				}
 			}
 		}
@@ -415,7 +415,7 @@ func (s *shard) Disconnect(opts DisconnectOptions) (res changelog.Log) {
 		}
 		s.clients = map[string]*Client{}
 		s.users = map[string]map[*Client]struct{}{}
-		s.topics = map[string]topic.topic{}
+		s.topics = map[string]topic{}
 		s.invalidClients = map[string]int64{}
 		s.inactiveClients = map[string]int64{}
 		s.userSubs = map[string]map[string]*subscription{}
@@ -605,12 +605,12 @@ func (s *shard) Metrics() (m Metrics) {
 	return
 }
 
-func newShard(nsRegistry *namespace.namespaceRegistry, clientCfg ClientConfig) *shard {
+func newShard(nsRegistry *namespace.Registry, clientCfg ClientConfig) *shard {
 	clientCfg.validate()
 	return &shard{
 		id: uuid.New().String(),
 		clients: 		 map[string]*Client{},
-		topics: 		 map[string]topic.topic{},
+		topics: 		 map[string]topic{},
 		inactiveClients: map[string]int64{},
 		invalidClients:  map[string]int64{},
 		subs: 			 map[string]map[string]*subscription{},

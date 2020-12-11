@@ -16,11 +16,11 @@ import (
 var logger = logrus.WithField("source", "ws_logger")
 
 type Server struct {
-	acceptChan chan notify.IncomingConnection
-	incomingChan chan notify.IncomingData
+	acceptChan     chan notify.IncomingConnection
+	incomingChan   chan notify.IncomingData
 	inactivateChan chan *pubsub.Client
-	upgrader ws.Upgrader
-	httpUpgrder ws.HTTPUpgrader
+	upgrader       ws.Upgrader
+	httpUpgrader   ws.HTTPUpgrader
 }
 
 func (s *Server) serveConn(c net.Conn) {
@@ -78,7 +78,7 @@ func (s *Server) serveConn(c net.Conn) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, _, _, err := s.httpUpgrder.Upgrade(r,w)
+	conn, _, _, err := s.httpUpgrader.Upgrade(r,w)
 	if err != nil {
 		logger.Debug(err)
 	}
@@ -100,11 +100,11 @@ func (s *Server) Incoming() <-chan notify.IncomingData {
 
 func NewServer(upgrader ws.Upgrader, httpUpgrader ws.HTTPUpgrader) *Server {
 	s := &Server{
-		acceptChan:   make(chan notify.IncomingConnection, 1024),
-		incomingChan: make(chan notify.IncomingData, 1024),
+		acceptChan:     make(chan notify.IncomingConnection, 1024),
+		incomingChan:   make(chan notify.IncomingData, 1024),
 		inactivateChan: make(chan *pubsub.Client, 1024),
-		upgrader: upgrader,
-		httpUpgrder: httpUpgrader,
+		upgrader:       upgrader,
+		httpUpgrader:   httpUpgrader,
 	}
 	return s
 }
