@@ -2,8 +2,9 @@ package websockets
 
 import (
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/transport"
+	"github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/RomanIschenko/notify/internal/pubsub/internal/client"
+	"github.com/RomanIschenko/notify/internal/pubsub/transport"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/google/uuid"
@@ -18,7 +19,7 @@ var logger = logrus.WithField("source", "ws_logger")
 type Server struct {
 	acceptChan     chan notify.IncomingConnection
 	incomingChan   chan notify.IncomingData
-	inactivateChan chan *pubsub.Client
+	inactivateChan chan *client.Client
 	upgrader       ws.Upgrader
 	httpUpgrader   ws.HTTPUpgrader
 }
@@ -90,7 +91,7 @@ func (s *Server) Accept() <-chan notify.IncomingConnection {
 	return s.acceptChan
 }
 
-func (s *Server) Inactive() <-chan *pubsub.Client {
+func (s *Server) Inactive() <-chan *client.Client {
 	return s.inactivateChan
 }
 
@@ -102,7 +103,7 @@ func NewServer(upgrader ws.Upgrader, httpUpgrader ws.HTTPUpgrader) *Server {
 	s := &Server{
 		acceptChan:     make(chan notify.IncomingConnection, 1024),
 		incomingChan:   make(chan notify.IncomingData, 1024),
-		inactivateChan: make(chan *pubsub.Client, 1024),
+		inactivateChan: make(chan *client.Client, 1024),
 		upgrader:       upgrader,
 		httpUpgrader:   httpUpgrader,
 	}

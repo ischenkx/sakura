@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"github.com/RomanIschenko/notify"
 	authmock "github.com/RomanIschenko/notify/auth/mock"
-	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/changelog"
+	"github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/RomanIschenko/notify/internal/pubsub/changelog"
+	"github.com/RomanIschenko/notify/internal/pubsub/internal/client"
 	"github.com/RomanIschenko/notify/transports/websockets"
 	"github.com/gobwas/ws"
 	"log"
@@ -53,14 +54,14 @@ func main() {
 	// we want to subscribe client to the "chat" topic
 	// and send a "welcome" message to that topic
 	app.Events(context.Background()).
-		OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
+		OnConnect(func(opts pubsub.ConnectOptions, client *client.Client, log changelog.Log) {
 			app.Subscribe(pubsub.SubscribeOptions{
 				Topics:   []string{"chat"},
 				Clients:  []string{client.ID()},
 			})
 			app.Publish(pubsub.PublishOptions{
-				Topics:   []string{"chat"},
-				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
+				Topics:  []string{"chat"},
+				Message: []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
 			})
 		})
 
@@ -83,7 +84,7 @@ func main() {
 
 func DataHandler(app *notify.App, data notify.IncomingData) {
 	app.Publish(pubsub.PublishOptions{
-		Topics:   []string{"chat"},
-		Payload:  data.Payload,
+		Topics:  []string{"chat"},
+		Message: data.Payload,
 	})
 }

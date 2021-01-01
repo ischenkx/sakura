@@ -1,12 +1,8 @@
 package pubsub
 
+import "github.com/RomanIschenko/notify/pubsub/internal/broadcaster"
+
 type Metrics struct {
-	Users, Clients, Topics int
+	BroadcasterMetrics broadcaster.Metrics
+	Clients, Users, Topics, InactiveClients int
 }
-
-func (m *Metrics) Merge(otherMetrics *Metrics) {
-	m.Clients += otherMetrics.Clients
-	m.Users += otherMetrics.Users
-	m.Topics += otherMetrics.Topics
-}
-

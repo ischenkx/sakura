@@ -143,6 +143,7 @@ export class Client {
     }
 
     disconnect() {
+        this.__state = FORCIBLY_CLOSED_CLIENT
         this.transport.close()
     }
 }

@@ -5,7 +5,7 @@ import (
 )
 
 type Claims struct {
-	Data string
+	ClientID, UserID string
 }
 
 func (c Claims) Valid() error {
@@ -16,16 +16,16 @@ type Auth struct {
 	secret string
 }
 
-func (auth *Auth) Register(id string) (string, error) {
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{id}).SignedString([]byte(auth.secret))
+func (auth *Auth) Register(id, userId string) (string, error) {
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{id, userId}).SignedString([]byte(auth.secret))
 }
 
-func (auth *Auth) Authorize(token string) (string, error) {
+func (auth *Auth) Authorize(token string) (string, string, error) {
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		return []byte(auth.secret), nil
 	})
-	return claims.Data, err
+	return claims.ClientID, claims.UserID, err
 }
 
 func New(secret string) *Auth {

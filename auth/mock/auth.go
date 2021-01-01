@@ -1,17 +1,16 @@
 package authmock
 
 import (
-	clientid "github.com/RomanIschenko/notify/pubsub/clientid"
 	"github.com/google/uuid"
 )
 
 type Auth struct {}
 
-func (a Auth) Authorize(string) (string, error) {
-	return clientid.New(uuid.New().String()), nil
+func (a Auth) Authorize(string) (string, string, error) {
+	return uuid.New().String(), uuid.New().String(), nil
 }
 
-func (a Auth) Register(id string) (string, error) {
+func (a Auth) Register(id, user string) (string, error) {
 	return "", nil
 }
 

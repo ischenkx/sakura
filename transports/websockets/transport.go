@@ -1,7 +1,7 @@
 package websockets
 
 import (
-	"github.com/RomanIschenko/notify/pubsub/transport"
+	"github.com/RomanIschenko/notify/internal/pubsub/transport"
 	"github.com/gobwas/ws/wsutil"
 	"net"
 	"sync/atomic"

@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/RomanIschenko/notify"
-	authmock "github.com/RomanIschenko/notify/auth/mock"
+	"github.com/RomanIschenko/notify/auth/jwt"
 	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/changelog"
-	"github.com/RomanIschenko/notify/pubsub/namespace"
 	sjs "github.com/RomanIschenko/notify/transports/sockjs"
-	"github.com/igm/sockjs-go/sockjs"
+	"github.com/igm/sockjs-go/v3/sockjs"
 	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
@@ -20,70 +18,71 @@ import (
 func main() {
 	logrus.SetLevel(logrus.TraceLevel)
 	opts := sockjs.DefaultOptions
-
 	opts.CheckOrigin = func(request *http.Request) bool {
 		return true
 	}
-
+	opts.RawWebsocket = true
 	server := sjs.NewServer("/pubsub", opts)
 
-	// here we create a simple application
-	// to send notifications (chat messages)
 	app := notify.New(notify.Config{
-		ID:           "chat",
-		PubSubConfig: pubsub.Config{
-			ClientConfig:  pubsub.ClientConfig{
-				// Client's time to live
-				// after the specified duration client will become invalid
-				TTL:              time.Minute * 2,
-			},
-			CleanInterval: time.Minute,
+		ID: "chat",
+		PubsubConfig: pubsub.Config{
+			ClientTTL: time.Second * 30,
+			ClientBufferSize: -1,
 		},
-		ServerConfig: notify.ServerConfig{
-			// our websockets server
-			Server:          server,
-			// Server interface provides three channels to read from:
-			// Inactive - dropped connections
-			// Incoming - incoming data from clients
-			// Accept - incoming connections to be registered in our app
-			// All these channels are being readen in different
-			// goroutines and Workers is a parameter that specifies
-			// the amount of reading goroutines for each channel
+		Server: notify.ServerConfig{
+			Instance:  server,
 			Workers: 6,
-			// DataHandler is a function that handles incoming data
-			// func(*notify.App, notify.IncomingData)
-			DataHandler:     DataHandler,
 		},
-		// Auth can be used for authentication of incoming connections
-		Auth:         authmock.New(),
+		CleanInterval: time.Second * 15,
+		Auth: jwt.New("secret-key"),
 	})
 
-	// we want to subscribe client to the "chat" topic
-	// and send a "welcome" message to that topic
 	app.Events(context.Background()).
-		OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
-			app.Subscribe(pubsub.SubscribeOptions{
-				Topics:   []string{"chat:global"},
-				Clients:  []string{client.ID()},
-			})
-			app.Publish(pubsub.PublishOptions{
-				Topics:   []string{"chat:global"},
-				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
-			})
+		OnPublish(func(app *notify.App, options pubsub.PublishOptions) {
+			//fmt.Println("publishing:", string(options.Message))
 		})
 
+	app.Events(context.Background()).
+		OnConnect(func(app *notify.App, opts pubsub.ConnectOptions, client pubsub.Client) {
+			if req, ok := opts.MetaInfo.(*http.Request); ok {
+				room := req.URL.Query().Get("room")
+				if room == "" {
+					room = "chat"
+				}
+				client.Meta().Store("room", room)
+				app.Subscribe(pubsub.SubscribeOptions{
+					Topics:   []string{room},
+					Clients:  []string{client.ID()},
+				})
+				app.Publish(pubsub.PublishOptions{
+					Topics:  []string{room},
+					Message: []byte(fmt.Sprintf("%s joined the room %s!!!", client.ID(), room)),
+				})
+			} else {
+				fmt.Println("failed to get http request from options")
+			}
+		})
 
-	app.NamespaceRegistry().Register("chat", namespace.Config{
-		MaxClients: 2,
-	})
+	app.Events(context.Background()).
+		OnIncomingData(
+			func(app *notify.App, data notify.IncomingData) {
+				room, ok := data.Client.Meta().Load("room")
+				if !ok {
+					return
+				}
+				app.Publish(pubsub.PublishOptions{
+					Topics:  []string{room.(string)},
+					Message: data.Payload,
+				})
+			})
 
 	app.Start(context.Background())
 
 	http.HandleFunc("/pubsub/", func(w http.ResponseWriter, r *http.Request) {
-		// cors settings
-		(w).Header().Set("Access-Control-Allow-Origin", "*")
-		(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		(w).Header().Set("Access-Control-Allow-Headers",
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers",
 			"Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		server.ServeHTTP(w, r)
 	})
@@ -91,11 +90,4 @@ func main() {
 	if err := http.ListenAndServe("localhost:3000", nil); err != nil {
 		log.Println(err)
 	}
-}
-
-func DataHandler(app *notify.App, data notify.IncomingData) {
-	app.Publish(pubsub.PublishOptions{
-		Topics:   []string{"chat:global"},
-		Payload:  data.Payload,
-	})
 }

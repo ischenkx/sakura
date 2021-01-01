@@ -3,19 +3,16 @@ package notify
 import (
 	"context"
 	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/RomanIschenko/notify/pubsub/changelog"
-	"github.com/RomanIschenko/notify/pubsub/namespace"
 	"github.com/sirupsen/logrus"
 	"runtime"
+	"time"
 )
 
 var logger = logrus.WithField("source", "notify_app")
 
 type ServerConfig struct {
-	Server  Server
+	Instance  Server
 	Workers int
-	// if data handler returns non-nil error then client will be disconnected
-	DataHandler func(*App, IncomingData)
 }
 
 func (cfg *ServerConfig) validate() {
@@ -26,10 +23,12 @@ func (cfg *ServerConfig) validate() {
 
 type Config struct {
 	ID           string
-	PubSubConfig pubsub.Config
-	ServerConfig ServerConfig
+	PubsubConfig pubsub.Config
+	CleanInterval time.Duration
+	Server ServerConfig
 	Auth         Auth
 }
+
 func (cfg *Config) validate() {
 	if cfg.ID == "" {
 		panic("cannot create app with empty id")
@@ -38,164 +37,106 @@ func (cfg *Config) validate() {
 
 type App struct {
 	id           string
-	pubsub       *pubsub.Pubsub
+	hub 		 *pubsub.Hub
 	auth         Auth
-	serverConfig ServerConfig
+	config Config
+	proxyRegistry *proxyRegistry
+	eventsRegistry *eventsRegistry
 }
 
-func (app *App) connect(opts pubsub.ConnectOptions, auth string) (*pubsub.Client, error) {
+func (app *App) Proxy(ctx context.Context) *Proxy {
+	return app.proxyRegistry.hub(ctx)
+}
+
+func (app *App) connect(opts pubsub.ConnectOptions, auth string) (pubsub.Client, error) {
 	if app.auth != nil {
-		clientID, err := app.auth.Authorize(auth)
+		clientID, userID, err := app.auth.Authorize(auth)
 		if err != nil {
 			logger.Debug("failed to authorize:", err)
-			return nil, err
+			return pubsub.Client{}, err
 		}
-		opts.ID = clientID
+		opts.ClientID = clientID
+		opts.UserID = userID
 	}
-	client, err := app.pubsub.Connect(opts)
+	app.proxyRegistry.emitConnect(app, &opts)
+	c, log, err := app.hub.Connect(opts)
 	if err != nil {
 		logger.Debug("failed to connect:", err)
-		return client, err
-	}
-	return client, err
-}
-
-func (app *App) inactivateClient(client *pubsub.Client) {
-	if client == nil {
-		return
-	}
-	app.pubsub.InactivateClient(client)
-}
-
-func (app *App) handle(data IncomingData) {
-	if data.Client == nil {
-		return
-	}
-	if data.Payload == nil {
-		return
-	}
-	if app.serverConfig.DataHandler == nil {
-		data.Payload = data.Payload[:0]
-		return
-	}
-	app.serverConfig.DataHandler(app, data)
-}
-
-func (app *App) startServer(ctx context.Context) {
-	if app.serverConfig.Server == nil {
-		return
-	}
-	app.serverConfig.validate()
-	server := app.serverConfig.Server
-	for i := 0; i < app.serverConfig.Workers; i++ {
-		go func(ctx context.Context, server Server) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case conn := <-server.Accept():
-					go func() {
-						var resolved ResolvedConnection
-						resolved.Client, resolved.Err = app.connect(conn.Opts, conn.AuthData)
-						conn.Resolver <- resolved
-					}()
-				}
-			}
-		}(ctx, server)
+	} else {
+		app.eventsRegistry.emitConnect(app, opts, c, log)
 	}
 
-	for i := 0; i < app.serverConfig.Workers; i++ {
-		go func(ctx context.Context, server Server) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case client := <-server.Inactive():
-					app.inactivateClient(client)
-				}
-			}
-		}(ctx, server)
-	}
-
-	for i := 0; i < app.serverConfig.Workers; i++ {
-		go func(ctx context.Context, server Server) {
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case opts := <-server.Incoming():
-					go app.handle(opts)
-				}
-			}
-		}(ctx, server)
-	}
-}
-
-func (app *App) Clients() []string {
-	return app.pubsub.Clients()
-}
-
-func (app *App) Users() []string {
-	return app.pubsub.Users()
-}
-
-func (app *App) Topics() []string {
-	return app.pubsub.Topics()
+	return c, err
 }
 
 func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Proxy(ctx context.Context) *pubsub.Proxy {
-	return app.pubsub.Proxy(ctx)
-}
-
-func (app *App) Events(ctx context.Context) *pubsub.EventsHub {
-	return app.pubsub.Events(ctx)
-}
-
-func (app *App) NamespaceRegistry() *namespace.Registry {
-	return app.pubsub.NamespaceRegistry()
-}
-
-func (app *App) Metrics() pubsub.Metrics {
-	return app.pubsub.Metrics()
+func (app *App) Events(ctx context.Context) *EventsHub {
+	return app.eventsRegistry.hub(ctx)
 }
 
 func (app *App) Publish(opts pubsub.PublishOptions) {
-	err := app.pubsub.Publish(opts)
-	if err != nil {
-		logger.Debug("failed to publish:", err)
-		return
+	app.proxyRegistry.emitPublish(app, &opts)
+	app.hub.Publish(opts)
+	app.eventsRegistry.emitPublish(app, opts)
+}
+
+func (app *App) Subscribe(opts pubsub.SubscribeOptions) {
+	app.proxyRegistry.emitSubscribe(app, &opts)
+	log := app.hub.Subscribe(opts)
+	app.eventsRegistry.emitSubscribe(app, opts, log)
+}
+
+func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
+	app.proxyRegistry.emitUnsubscribe(app, &opts)
+	log := app.hub.Unsubscribe(opts)
+	app.eventsRegistry.emitUnsubscribe(app, opts, log)
+}
+
+func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
+	app.proxyRegistry.emitDisconnect(app, &opts)
+	log := app.hub.Disconnect(opts)
+	app.eventsRegistry.emitDisconnect(app, opts, log)
+}
+
+func (app *App) startServer(ctx context.Context) {
+	if app.config.Server.Instance != nil {
+		go app.config.Server.Instance.Start(ctx, (*servable)(app))
 	}
 }
 
-func (app *App) Subscribe(opts pubsub.SubscribeOptions) changelog.Log {
-	return app.pubsub.Subscribe(opts)
-}
-
-func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) changelog.Log {
-	return app.pubsub.Unsubscribe(opts)
-}
-
-func (app *App) Disconnect(opts pubsub.DisconnectOptions) changelog.Log {
-	return app.pubsub.Disconnect(opts)
+func (app *App) startHubCleaner(ctx context.Context) {
+	ticker := time.NewTicker(app.config.CleanInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			log := app.hub.Clean()
+			app.eventsRegistry.emitChange(app, log)
+		}
+	}
 }
 
 func (app *App) Start(ctx context.Context) {
 	logger.Infof("%s has started", app.id)
 	app.startServer(ctx)
-	go app.pubsub.StartCleaner(ctx)
+	app.hub.Start(ctx)
 }
 
 func New(config Config) *App {
 	config.validate()
+	h := pubsub.New(config.PubsubConfig)
 	app := &App{
-		id:           config.ID,
-		pubsub:       pubsub.New(config.PubSubConfig),
-		auth:         config.Auth,
-		serverConfig: config.ServerConfig,
+		id:  config.ID,
+		hub: h,
+		auth: config.Auth,
+		eventsRegistry: newEventsRegistry(),
+		proxyRegistry: newProxyRegistry(),
+		config: config,
 	}
 	return app
 }
