@@ -2,141 +2,178 @@ package notify
 
 import (
 	"context"
-	"github.com/RomanIschenko/notify/pubsub"
-	"github.com/sirupsen/logrus"
-	"runtime"
+	"github.com/RomanIschenko/notify/internal/pubsub"
 	"time"
 )
 
-var logger = logrus.WithField("source", "notify_app")
-
-type ServerConfig struct {
-	Instance  Server
-	Workers int
-}
-
-func (cfg *ServerConfig) validate() {
-	if cfg.Workers <= 0 {
-		cfg.Workers = runtime.NumCPU()
-	}
-}
-
 type Config struct {
-	ID           string
-	PubsubConfig pubsub.Config
+	ID            string
+	Auth          Auth
 	CleanInterval time.Duration
-	Server ServerConfig
-	Auth         Auth
+	InvalidationTime time.Duration
 }
 
 func (cfg *Config) validate() {
 	if cfg.ID == "" {
 		panic("cannot create app with empty id")
 	}
+
+	if cfg.CleanInterval <= 0 {
+		cfg.CleanInterval = time.Second * 25
+	}
+
+	if cfg.InvalidationTime < 0 {
+		cfg.InvalidationTime = time.Minute
+	}
 }
 
 type App struct {
-	id           string
-	hub 		 *pubsub.Hub
-	auth         Auth
-	config Config
-	proxyRegistry *proxyRegistry
+	id             string
+	pubsub         *pubsub.PubSub
+	auth           Auth
+	config         Config
+	proxyRegistry  *proxyRegistry
 	eventsRegistry *eventsRegistry
-}
-
-func (app *App) Proxy(ctx context.Context) *Proxy {
-	return app.proxyRegistry.hub(ctx)
-}
-
-func (app *App) connect(opts pubsub.ConnectOptions, auth string) (pubsub.Client, error) {
-	if app.auth != nil {
-		clientID, userID, err := app.auth.Authorize(auth)
-		if err != nil {
-			logger.Debug("failed to authorize:", err)
-			return pubsub.Client{}, err
-		}
-		opts.ClientID = clientID
-		opts.UserID = userID
-	}
-	app.proxyRegistry.emitConnect(app, &opts)
-	c, log, err := app.hub.Connect(opts)
-	if err != nil {
-		logger.Debug("failed to connect:", err)
-	} else {
-		app.eventsRegistry.emitConnect(app, opts, c, log)
-	}
-
-	return c, err
 }
 
 func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Events(ctx context.Context) *EventsHub {
-	return app.eventsRegistry.hub(ctx)
-}
-
-func (app *App) Publish(opts pubsub.PublishOptions) {
-	app.proxyRegistry.emitPublish(app, &opts)
-	app.hub.Publish(opts)
-	app.eventsRegistry.emitPublish(app, opts)
-}
-
-func (app *App) Subscribe(opts pubsub.SubscribeOptions) {
+func(app *App) Subscribe(opts SubscribeOptions) {
 	app.proxyRegistry.emitSubscribe(app, &opts)
-	log := app.hub.Subscribe(opts)
-	app.eventsRegistry.emitSubscribe(app, opts, log)
+	changelog := app.pubsub.Subscribe(opts)
+	app.eventsRegistry.emitChange(app, changelog)
+	// TODO
+	// add unsubscribe event support
 }
 
-func (app *App) Unsubscribe(opts pubsub.UnsubscribeOptions) {
+func(app *App) Unsubscribe(opts UnsubscribeOptions) {
 	app.proxyRegistry.emitUnsubscribe(app, &opts)
-	log := app.hub.Unsubscribe(opts)
-	app.eventsRegistry.emitUnsubscribe(app, opts, log)
+	changelog := app.pubsub.Unsubscribe(opts)
+
+	app.eventsRegistry.emitChange(app, changelog)
+
+	// TODO
+	// add unsubscribe event support
 }
 
-func (app *App) Disconnect(opts pubsub.DisconnectOptions) {
+func(app *App) Publish(opts PublishOptions) {
+	app.proxyRegistry.emitPublish(app, &opts)
+	app.pubsub.Publish(opts)
+}
+
+func(app *App) Disconnect(opts DisconnectOptions)  {
 	app.proxyRegistry.emitDisconnect(app, &opts)
-	log := app.hub.Disconnect(opts)
-	app.eventsRegistry.emitDisconnect(app, opts, log)
-}
-
-func (app *App) startServer(ctx context.Context) {
-	if app.config.Server.Instance != nil {
-		go app.config.Server.Instance.Start(ctx, (*servable)(app))
+	clients, changelog := app.pubsub.Disconnect(opts)
+	app.eventsRegistry.emitChange(app, changelog)
+	for _, c := range clients {
+		app.eventsRegistry.emitDisconnect(app, c)
 	}
 }
 
-func (app *App) startHubCleaner(ctx context.Context) {
-	ticker := time.NewTicker(app.config.CleanInterval)
+func (app *App) startCleaner(ctx context.Context) {
+	ticker := time.NewTicker(time.Second * 20)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			log := app.hub.Clean()
-			app.eventsRegistry.emitChange(app, log)
+			clients, changelog := app.pubsub.Clean()
+			for _, c := range clients {
+				app.eventsRegistry.emitDisconnect(app, c)
+			}
+			app.eventsRegistry.emitChange(app, changelog)
 		}
 	}
 }
 
 func (app *App) Start(ctx context.Context) {
-	logger.Infof("%s has started", app.id)
-	app.startServer(ctx)
-	app.hub.Start(ctx)
+	app.pubsub.Start(ctx)
+	go app.startCleaner(ctx)
+}
+
+func(app *App) Servable() Servable {
+	return (*servable)(app)
+}
+
+func(app *App) Events() *AppEvents {
+	return app.eventsRegistry.newHub()
+}
+
+func(app *App) Proxy() *Proxy {
+	return app.proxyRegistry.newHub()
+}
+
+func(app *App) Metrics() Metrics {
+	return Metrics{
+		PubSubMetrics: app.pubsub.Metrics(),
+	}
+}
+
+func(app *App) IsSubscribed(client string, topic string) (bool, error) {
+	return app.pubsub.IsSubscribed(client, topic)
+}
+
+func(app *App) IsUserSubscribed(user string, topic string) (bool, error) {
+	return app.pubsub.IsUserSubscribed(user, topic)
+
+}
+
+func(app *App) TopicSubscribers(id string) ([]string, error) {
+	return app.pubsub.TopicSubscribers(id)
+}
+
+func(app *App) ClientSubscriptions(id string) ([]string, error) {
+	return app.pubsub.ClientSubscriptions(id)
+
+}
+
+func(app *App) UserSubscriptions(userID string) ([]string, error) {
+	return app.pubsub.UserSubscriptions(userID)
+}
+
+func (app *App) connect(opts ConnectOptions, auth string) (Client, error) {
+	if app.auth != nil {
+		id, user, err := app.auth.Authorize(auth)
+		if err != nil {
+			return nil, err
+		}
+		opts.ClientID = id
+		opts.UserID = user
+	}
+
+	app.proxyRegistry.emitConnect(app, &opts)
+	client, changelog, reconnected, err := app.pubsub.Connect(opts)
+
+	if err != nil {
+		return nil, err
+	}
+
+	app.eventsRegistry.emitChange(app, changelog)
+	if reconnected {
+		app.eventsRegistry.emitReconnect(app, opts, client)
+	} else {
+		app.eventsRegistry.emitConnect(app, opts, client)
+	}
+
+	return client, nil
 }
 
 func New(config Config) *App {
 	config.validate()
-	h := pubsub.New(config.PubsubConfig)
+	h := pubsub.New(pubsub.Config{
+		InvalidationTime: config.InvalidationTime,
+		CleanInterval:    config.CleanInterval,
+	})
 	app := &App{
-		id:  config.ID,
-		hub: h,
-		auth: config.Auth,
+		id:             config.ID,
+		pubsub:         h,
+		auth:           config.Auth,
 		eventsRegistry: newEventsRegistry(),
-		proxyRegistry: newProxyRegistry(),
-		config: config,
+		proxyRegistry:  newProxyRegistry(),
+		config:         config,
 	}
 	return app
 }

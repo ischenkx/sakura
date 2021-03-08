@@ -1,228 +1,277 @@
 package notify
 
 import (
-	"context"
-	"github.com/RomanIschenko/notify/pubsub"
+	"errors"
 	"sync"
+	"sync/atomic"
 )
 
-type eventsRegistry struct {
-	ctxHubs map[context.Context]*EventsHub
+// TODO
+// Events 2.0
+// Connect - first connection of the Client
+// Reconnect - Client reconnected
+// Disconnect - Client disconnected and was deleted
+// Inactivate - Client disconnected and is being waited to reconnect
+// Message - incoming message
+// Change - all changes made in pub/sub system (ChangeLog)
+// Publish - new publication
+// Subscribe - subscribed
+// Unsubscribe - unsubscribed
+
+var idSeq = uint64(0)
+
+type AppEvents struct {
+	id uint64
+	closed bool
+	reg *eventsRegistry
+	onPublish []func(a *App, opts PublishOptions)
+	onConnect []func(a *App, opts ConnectOptions, c Client)
+	onReconnect []func(a *App, opts ConnectOptions, c Client)
+	onDisconnect []func(a *App, cs Client)
+	onInactivate []func(a *App, c Client)
+	onMessage []func(a *App, c Client, message []byte)
+	onChange []func(a *App, log ChangeLog)
 	mu sync.RWMutex
+}
+
+type eventsRegistry struct {
+	hubs map[uint64]*AppEvents
+	mu   sync.RWMutex
 }
 
 func newEventsRegistry() *eventsRegistry {
 	return &eventsRegistry{
-		ctxHubs: map[context.Context]*EventsHub{},
+		hubs: map[uint64]*AppEvents{},
 	}
 }
 
-func (hub *eventsRegistry) hub(ctx context.Context) *EventsHub {
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-	h, ok := hub.ctxHubs[ctx]
-	if !ok {
-		h = newEventsHub()
-		hub.ctxHubs[ctx] = h
-		if ctx != nil {
-			go func(ctx context.Context) {
-				select {
-				case <-ctx.Done():
-					hub.mu.Lock()
-					defer hub.mu.Unlock()
-					delete(hub.ctxHubs, ctx)
-				}
-			}(ctx)
-		}
+func (reg *eventsRegistry) newHub() *AppEvents {
+	reg.mu.Lock()
+	defer reg.mu.Unlock()
+
+	id := atomic.AddUint64(&idSeq, 1)
+
+	h := &AppEvents{
+		id:  id,
+		reg: reg,
 	}
+
+	reg.hubs[id] = h
+
 	return h
 }
 
-type EventsHub struct {
-	mu sync.RWMutex
-	onChange []func(a *App, log pubsub.ChangeLog)
-	onPublish []func(a *App, opts pubsub.PublishOptions)
-	onSubscribe []func(a *App, opts pubsub.SubscribeOptions)
-	onUnsubscribe []func(a *App, opts pubsub.UnsubscribeOptions)
-	onConnect []func(a *App, opts pubsub.ConnectOptions, c pubsub.Client)
-	onDisconnect []func(a *App, options pubsub.DisconnectOptions)
-	onInactivate []func(a *App, c pubsub.Client)
-	onIncomingData []func(a *App, data IncomingData)
-}
-
-func newEventsHub() *EventsHub {
-	return &EventsHub{}
-}
-
-func (hub *EventsHub) emitChange(a *App, log pubsub.ChangeLog) {
+func (hub *AppEvents) emitReconnect(a *App, opts ConnectOptions, c Client) {
 	hub.mu.RLock()
-	for _, handler := range hub.onChange {
-		handler(a, log)
+	for _, handler := range hub.onReconnect {
+		handler(a, opts, c)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitChange(a *App, log pubsub.ChangeLog) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
-		h.emitChange(a, log)
+
+func (reg *eventsRegistry) emitReconnect(a *App, opts ConnectOptions, c Client) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
+		h.emitReconnect(a, opts, c)
 	}
-	hub.mu.RUnlock()
+	reg.mu.RUnlock()
 }
-func (hub *EventsHub) OnChange(f func(a *App, l pubsub.ChangeLog)) {
+
+func (hub *AppEvents) OnReconnect(f func(a *App, opts ConnectOptions, l Client)) error {
 	hub.mu.Lock()
-	hub.onChange = append(hub.onChange, f)
-	hub.mu.Unlock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
+
+	hub.onReconnect = append(hub.onReconnect, f)
+	return nil
 }
 
-func (hub *EventsHub) emitPublish(a *App, opts pubsub.PublishOptions) {
+func (hub *AppEvents) emitPublish(a *App, opts PublishOptions) {
 	hub.mu.RLock()
 	for _, handler := range hub.onPublish {
 		handler(a, opts)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitPublish(a *App, opts pubsub.PublishOptions) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
+
+func (reg *eventsRegistry) emitPublish(a *App, opts PublishOptions) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
 		h.emitPublish(a, opts)
 
 	}
-	hub.mu.RUnlock()
+	reg.mu.RUnlock()
 }
-func (hub *EventsHub) OnPublish(f func(*App, pubsub.PublishOptions)) {
 
+func (hub *AppEvents) OnPublish(f func(*App, PublishOptions)) error {
 	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
+
 	hub.onPublish = append(hub.onPublish, f)
-	hub.mu.Unlock()
+	return nil
 }
 
-func (hub *EventsHub) emitIncomingData(a *App, data IncomingData) {
+func (hub *AppEvents) emitMessage(a *App, c Client, data []byte) {
 	hub.mu.RLock()
-	for _, handler := range hub.onIncomingData {
-		handler(a, data)
+	for _, handler := range hub.onMessage {
+		handler(a, c, data)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitIncomingData(a *App, data IncomingData) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
-		h.emitIncomingData(a, data)
+
+func (reg *eventsRegistry) emitMessage(a *App, c Client, data []byte) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
+		h.emitMessage(a, c, data)
 	}
-	hub.mu.RUnlock()
+	reg.mu.RUnlock()
 }
-func (hub *EventsHub) OnIncomingData(h func(a *App, data IncomingData)) {
+
+func (hub *AppEvents) OnMessage(h func(a *App, c Client, data []byte)) error {
 	hub.mu.Lock()
-	hub.onIncomingData = append(hub.onIncomingData, h)
-	hub.mu.Unlock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
+
+	hub.onMessage = append(hub.onMessage, h)
+	return nil
 }
 
-func (hub *EventsHub) emitSubscribe(a *App, opts pubsub.SubscribeOptions) {
-	hub.mu.RLock()
-	for _, handler := range hub.onSubscribe {
-		handler(a, opts)
-	}
-	hub.mu.RUnlock()
-}
-func (hub *eventsRegistry) emitSubscribe(a *App, opts pubsub.SubscribeOptions, log pubsub.ChangeLog) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
-		h.emitSubscribe(a, opts)
-		h.emitChange(a, log)
-	}
-	hub.mu.RUnlock()
-}
-func (hub *EventsHub) OnSubscribe(f func(a *App, opts pubsub.SubscribeOptions)) {
-	hub.mu.Lock()
-	hub.onSubscribe = append(hub.onSubscribe, f)
-	hub.mu.Unlock()
-}
-
-func (hub *EventsHub) emitUnsubscribe(a *App, opts pubsub.UnsubscribeOptions) {
-	hub.mu.RLock()
-	for _, handler := range hub.onUnsubscribe {
-		handler(a, opts)
-	}
-	hub.mu.RUnlock()
-}
-func (hub *eventsRegistry) emitUnsubscribe(a *App, opts pubsub.UnsubscribeOptions, log pubsub.ChangeLog) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
-		h.emitUnsubscribe(a, opts)
-		h.emitChange(a, log)
-	}
-	hub.mu.RUnlock()
-}
-func (hub *EventsHub) OnUnsubscribe(f func(a *App, opts pubsub.UnsubscribeOptions)) {
-
-	hub.mu.Lock()
-	hub.onUnsubscribe = append(hub.onUnsubscribe, f)
-	hub.mu.Unlock()
-}
-
-func (hub *EventsHub) emitConnect(a *App, opts pubsub.ConnectOptions, c pubsub.Client) {
+func (hub *AppEvents) emitConnect(a *App, opts ConnectOptions, c Client) {
 	hub.mu.RLock()
 	for _, handler := range hub.onConnect {
 		handler(a, opts, c)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitConnect(a *App, opts pubsub.ConnectOptions, c pubsub.Client, log pubsub.ChangeLog) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
+
+func (reg *eventsRegistry) emitConnect(a *App, opts ConnectOptions, c Client) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
 		h.emitConnect(a, opts, c)
-		h.emitChange(a, log)
 	}
-	hub.mu.RUnlock()
+	reg.mu.RUnlock()
 }
-func (hub *EventsHub) OnConnect(f func(a *App, opts pubsub.ConnectOptions, c pubsub.Client)) {
 
+func (hub *AppEvents) OnConnect(f func(a *App, opts ConnectOptions, c Client)) error {
 	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
 	hub.onConnect = append(hub.onConnect, f)
-	hub.mu.Unlock()
+	return nil
 }
 
-func (hub *EventsHub) emitDisconnect(a *App, opts pubsub.DisconnectOptions) {
+func (hub *AppEvents) emitDisconnect(a *App, client Client) {
 	hub.mu.RLock()
 	for _, handler := range hub.onDisconnect {
-		handler(a, opts)
+		handler(a, client)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitDisconnect(a *App, opts pubsub.DisconnectOptions, log pubsub.ChangeLog) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
-		h.emitDisconnect(a, opts)
-		h.emitChange(a, log)
-	}
-	hub.mu.RUnlock()
-}
-func (hub *EventsHub) OnDisconnect(f func(a *App, opts pubsub.DisconnectOptions)) {
 
+func (reg *eventsRegistry) emitDisconnect(a *App, client Client) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
+		h.emitDisconnect(a, client)
+	}
+	reg.mu.RUnlock()
+}
+
+func (hub *AppEvents) OnDisconnect(f func(a *App, clients Client)) error {
 	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
 	hub.onDisconnect = append(hub.onDisconnect, f)
-	hub.mu.Unlock()
+	return nil
 }
 
-func (hub *EventsHub) emitInactivate(a *App, c pubsub.Client) {
+func (hub *AppEvents) emitInactivate(a *App, c Client) {
 	hub.mu.RLock()
 	for _, handler := range hub.onInactivate {
 		handler(a, c)
 	}
 	hub.mu.RUnlock()
 }
-func (hub *eventsRegistry) emitInactivate(a *App, c pubsub.Client) {
-	hub.mu.RLock()
-	for _, h := range hub.ctxHubs {
+
+func (reg *eventsRegistry) emitInactivate(a *App, c Client) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
 		h.emitInactivate(a, c)
 
 	}
+	reg.mu.RUnlock()
+}
+
+func (hub *AppEvents) OnInactivate(f func(a *App, c Client)) error {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+
+	if hub.closed {
+		return errors.New("AppEvents: closed")
+	}
+
+	hub.onInactivate = append(hub.onInactivate, f)
+
+	return nil
+}
+
+func (hub *AppEvents) emitChange(a *App, c ChangeLog) {
+	hub.mu.RLock()
+	for _, handler := range hub.onChange {
+		handler(a, c)
+	}
 	hub.mu.RUnlock()
 }
-func (hub *EventsHub) OnInactivate(f func(a *App, c pubsub.Client)) {
+
+func (reg *eventsRegistry) emitChange(a *App, c ChangeLog) {
+	reg.mu.RLock()
+	for _, h := range reg.hubs {
+		h.emitChange(a, c)
+
+	}
+	reg.mu.RUnlock()
+}
+
+func (hub *AppEvents) OnChange(f func(a *App, c ChangeLog)) {
 	hub.mu.Lock()
-	hub.onInactivate = append(hub.onInactivate, f)
+	hub.onChange = append(hub.onChange, f)
 	hub.mu.Unlock()
 }
 
+func (hub *AppEvents) Close() error {
+	hub.mu.Lock()
+	if hub.closed {
+		hub.mu.Unlock()
+		return errors.New("AppEvents: already closed")
+	}
+	hub.closed = true
+	reg := hub.reg
+	id := hub.id
+	hub.reg = nil
+	hub.onPublish = nil
+	hub.onConnect = nil
+	hub.onReconnect = nil
+	hub.onDisconnect = nil
+	hub.onInactivate = nil
+	hub.onMessage = nil
+	hub.onChange = nil
+	hub.mu.Unlock()
+
+	reg.mu.Lock()
+	delete(reg.hubs, id)
+	reg.mu.Unlock()
+
+	return nil
+}
 
 
