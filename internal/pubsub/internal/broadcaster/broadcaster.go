@@ -14,8 +14,8 @@ import (
 
 type Broadcaster struct {
 	topics, users *group.Storage
-	sessions *session.Storage
-	queue chan common.Flusher
+	sessions      *session.Storage
+	queue         chan common.Flusher
 }
 
 func (b *Broadcaster) commit(m *Mutator) {
@@ -24,8 +24,7 @@ func (b *Broadcaster) commit(m *Mutator) {
 		case mutator.UserDetachedMutation:
 			b.users.Leave(mut.User, m.Timestamp(), mut.Clients, mut.Forced)
 		case mutator.UserAttachedMutation:
-			clients := b.sessions.Get(mut.Clients)
-			b.users.Join(mut.User, m.Timestamp(), clients)
+			b.users.Join(mut.User, m.Timestamp(), b.sessions.Get(mut.Clients))
 		case mutator.ClientUpdatedMutation:
 			b.sessions.
 				GetOrCreate(mut.Client, mut.Writer, m.Timestamp()).
@@ -33,8 +32,7 @@ func (b *Broadcaster) commit(m *Mutator) {
 		case mutator.ClientsDeletedMutation:
 			b.sessions.Delete(mut.Clients)
 		case mutator.TopicSubscribedMutation:
-			sessions := b.sessions.Get(mut.Clients)
-			b.topics.Join(mut.Topic, m.Timestamp(), sessions)
+			b.topics.Join(mut.Topic, m.Timestamp(), b.sessions.Get(mut.Clients))
 		case mutator.TopicUnsubscribedMutation:
 			b.topics.Leave(mut.Topic, m.Timestamp(), mut.Clients, mut.Forced)
 		}
@@ -58,7 +56,7 @@ func (b *Broadcaster) Broadcast(sessions, users, topics []string, data []byte) {
 		if s, ok := b.sessions.GetOne(id); ok {
 			s.Push(b.queue, mes)
 		} else {
-			log.Println("failed to get:", id)
+			log.Println("failed to get session:", id)
 		}
 	}
 
@@ -99,6 +97,6 @@ func New() *Broadcaster {
 		topics:   group.NewStorage(1000),
 		users:    group.NewStorage(1000),
 		sessions: session.NewStorage(1000),
-		queue: make(chan common.Flusher, 100000),
+		queue:    make(chan common.Flusher, 100000),
 	}
 }

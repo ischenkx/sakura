@@ -2,22 +2,21 @@ package events
 
 import (
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/pubsub"
 	"reflect"
 )
 
 type handler struct {
-	rawHandler interface{}
-	handlerVal reflect.Value
-	appIndex   int
-	clientIndex int
-	dataIndex	int
+	rawHandler   interface{}
+	handlerVal   reflect.Value
+	appIndex     int
+	clientIndex  int
+	dataIndex    int
 	emitterIndex int
-	data		interface{}
-	codec		Codec
+	data         interface{}
+	codec        Codec
 }
 
-func (h *handler) call(app reflect.Value, emitter reflect.Value, client pubsub.Client, data []byte) {
+func (h *handler) call(app reflect.Value, emitter reflect.Value, client notify.Client, data []byte) {
 	argsUsed := 0
 	var args [4]reflect.Value
 	if h.appIndex >= 0 {
@@ -53,17 +52,17 @@ func newHandler(hnd interface{}, codec Codec) *handler {
 	}
 
 	appType := reflect.TypeOf(&notify.App{})
-	clientType := reflect.TypeOf((*pubsub.Client)(nil)).Elem()
+	clientType := reflect.TypeOf((*notify.Client)(nil)).Elem()
 	emitterType := reflect.TypeOf(&Emitter{})
 	handlerVal := reflect.ValueOf(hnd)
 	h := &handler{
-		rawHandler:  hnd,
-		handlerVal:  handlerVal,
-		appIndex:    -1,
-		clientIndex: -1,
-		dataIndex:   -1,
+		rawHandler:   hnd,
+		handlerVal:   handlerVal,
+		appIndex:     -1,
+		clientIndex:  -1,
+		dataIndex:    -1,
 		emitterIndex: -1,
-		codec: codec,
+		codec:        codec,
 	}
 
 	for i := 0; i < t.NumIn(); i++ {
@@ -79,7 +78,7 @@ func newHandler(hnd interface{}, codec Codec) *handler {
 			}
 			h.clientIndex = i
 		} else if compareTypes(paramType, emitterType) {
-			if h.clientIndex >= 0 {
+			if h.emitterIndex >= 0 {
 				panic("two emitters in one handler")
 			}
 			h.emitterIndex = i

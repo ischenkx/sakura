@@ -14,14 +14,14 @@ import (
 var logger = logrus.WithField("source", "sockjs_server")
 
 type Server struct {
-	mu sync.RWMutex
-	app			 notify.Servable
-	handler		 http.Handler
+	mu      sync.RWMutex
+	app     notify.Servable
+	handler http.Handler
 }
 
 func (s *Server) serveSockJS(session sockjs.Session) {
 	t := &Transport{
-		session:   session,
+		session: session,
 	}
 	auth, err := t.session.Recv()
 	if err != nil {
@@ -31,10 +31,10 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	}
 
 	opts := pubsub.ConnectOptions{
-			Transport: t,
-			Seq:      time.Now().UnixNano(),
-			MetaInfo:  session.Request(),
-		}
+		Transport: t,
+		Seq:       time.Now().UnixNano(),
+		MetaInfo:  session.Request(),
+	}
 	s.mu.RLock()
 	app := s.app
 	s.mu.RUnlock()
@@ -50,7 +50,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 			app.Inactivate(client.ID())
 			return
 		}
-		app.HandleMessage(client,[]byte(data))
+		app.HandleMessage(client, []byte(data))
 	}
 }
 

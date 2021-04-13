@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/RomanIschenko/notify/internal/pubsub/internal/broadcaster"
 
 	"log"
@@ -16,29 +17,25 @@ type Config struct {
 }
 
 type PubSub struct {
-	clients map[string]*client
-	users map[string]*user
-	topics map[string]*topic
+	clients         map[string]*client
+	users           map[string]*user
+	topics          map[string]*topic
 	inactiveClients map[string]int64
-	broadcaster	*broadcaster.Broadcaster
-	config Config
-	mu sync.RWMutex
+	broadcaster     *broadcaster.Broadcaster
+	config          Config
+	mu              sync.RWMutex
 }
 
 func (p *PubSub) Clean() ([]Client, ChangeLog) {
-	log.Println("cleaning")
 	var clients []string
 	now := time.Now().UnixNano()
 	p.mu.Lock()
 	for clientID, timestamp := range p.inactiveClients {
-		if now - timestamp >= int64(p.config.InvalidationTime) {
+		if now-timestamp >= int64(p.config.InvalidationTime) {
 			clients = append(clients, clientID)
 		}
 	}
 	p.mu.Unlock()
-
-	log.Println("clients to be deleted:", clients)
-
 	return p.Disconnect(DisconnectOptions{
 		Clients:   clients,
 		TimeStamp: time.Now().UnixNano(),
@@ -127,6 +124,8 @@ func (p *PubSub) Inactivate(id string, ts int64) (Client, ChangeLog, error) {
 func (p *PubSub) Disconnect(opts DisconnectOptions) ([]Client, ChangeLog) {
 	opts.validate()
 	changelog := newChangeLog(opts.TimeStamp)
+
+	fmt.Println("disconnect called")
 
 	var clients []Client
 
@@ -229,14 +228,12 @@ func (p *PubSub) Disconnect(opts DisconnectOptions) ([]Client, ChangeLog) {
 			}
 		}
 	}
-
 	return clients, changelog
 }
 
 func (p *PubSub) Subscribe(opts SubscribeOptions) ChangeLog {
 	opts.validate()
 	changelog := newChangeLog(opts.TimeStamp)
-
 	mutator := p.broadcaster.Mutator(opts.TimeStamp)
 	defer mutator.Close()
 
@@ -244,7 +241,6 @@ func (p *PubSub) Subscribe(opts SubscribeOptions) ChangeLog {
 	defer p.mu.Unlock()
 	for _, topicID := range opts.Topics {
 		t, topicExists := p.topics[topicID]
-
 		if !topicExists {
 			t = newTopic()
 		}
@@ -255,6 +251,7 @@ func (p *PubSub) Subscribe(opts SubscribeOptions) ChangeLog {
 			}
 			if err := c.subscriptions.Add(topicID, opts.TimeStamp); err == nil {
 				t.Add(c.id)
+				changelog.Topics.addClient(topicID, clientID)
 				mutator.Subscribe(c.id, topicID)
 			} else {
 				log.Println(err)
@@ -265,10 +262,14 @@ func (p *PubSub) Subscribe(opts SubscribeOptions) ChangeLog {
 			if !userExists {
 				continue
 			}
-			u.Subscribe(topicID, opts.TimeStamp, func(c *client) {
+			err := u.Subscribe(topicID, opts.TimeStamp, func(c *client) {
 				t.Add(c.id)
 				mutator.Subscribe(c.id, topicID)
 			})
+
+			if err == nil {
+				changelog.Topics.addUser(topicID, userID)
+			}
 		}
 		if !topicExists && t.Len() > 0 {
 			changelog.addCreatedTopic(topicID)
@@ -298,6 +299,7 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 			for topicId, _ := range c.subscriptions.Map() {
 				if err := c.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
 					mutator.Unsubscribe(c.id, topicId, false)
+					changelog.Topics.deleteClient(topicId, clientID)
 				}
 
 				if t, topicExists := p.topics[topicId]; topicExists {
@@ -317,7 +319,7 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 			}
 
 			for topicId := range u.subscriptions.Map() {
-				u.Unsubscribe(topicId, opts.TimeStamp, func(c *client) {
+				err := u.Unsubscribe(topicId, opts.TimeStamp, func(c *client) {
 					if t, ok := p.topics[topicId]; ok {
 						t.Del(c.id)
 						if t.Len() == 0 {
@@ -325,8 +327,12 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 							changelog.addDeletedTopic(topicId)
 						}
 					}
+
 					mutator.Unsubscribe(c.id, topicId, false)
 				})
+				if err == nil {
+					changelog.Topics.deleteUser(topicId, userID)
+				}
 			}
 		}
 	} else if opts.AllFromTopic {
@@ -344,11 +350,14 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 				// delete from users
 				if c.user != "" {
 					if u, userExists := p.users[c.user]; userExists {
-						u.subscriptions.Delete(topicId, opts.TimeStamp)
+						if err := u.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
+							changelog.Topics.deleteUser(topicId, c.user)
+						}
 					}
 				}
 				if err := c.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
 					t.Del(c.id)
+					changelog.Topics.deleteClient(topicId, c.id)
 					mutator.Unsubscribe(c.id, topicId, false)
 				}
 			}
@@ -372,6 +381,7 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 				}
 				if err := c.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
 					t.Del(c.id)
+					changelog.Topics.deleteClient(topicId, c.id)
 					mutator.Unsubscribe(c.id, topicId, false)
 				}
 			}
@@ -380,10 +390,14 @@ func (p *PubSub) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 				if !userExists {
 					continue
 				}
-				u.Unsubscribe(topicId, opts.TimeStamp, func(c *client) {
+				err := u.Unsubscribe(topicId, opts.TimeStamp, func(c *client) {
 					t.Del(c.id)
 					mutator.Unsubscribe(c.id, topicId, false)
 				})
+
+				if err == nil {
+					changelog.Topics.deleteUser(topicId, userId)
+				}
 			}
 
 			if t.Len() == 0 {
@@ -416,7 +430,7 @@ func (p *PubSub) Metrics() Metrics {
 	}
 }
 
-func(p *PubSub) IsSubscribed(client string, topic string) (bool, error) {
+func (p *PubSub) IsSubscribed(client string, topic string) (bool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -427,7 +441,7 @@ func(p *PubSub) IsSubscribed(client string, topic string) (bool, error) {
 	return false, errors.New("no client found")
 }
 
-func(p *PubSub) IsUserSubscribed(user string, topic string) (bool, error) {
+func (p *PubSub) IsUserSubscribed(user string, topic string) (bool, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -438,7 +452,7 @@ func(p *PubSub) IsUserSubscribed(user string, topic string) (bool, error) {
 	return false, errors.New("no client found")
 }
 
-func(p *PubSub) TopicSubscribers(topic string) ([]string, error) {
+func (p *PubSub) TopicSubscribers(topic string) ([]string, error) {
 	var subs []string
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -447,13 +461,14 @@ func(p *PubSub) TopicSubscribers(topic string) ([]string, error) {
 		for id, _ := range t.clients {
 			subs = append(subs, id)
 		}
+		return subs, nil
 	}
 
-	return subs, errors.New("no topic found")
+	return nil, errors.New("no topic found")
 
 }
 
-func(p *PubSub) ClientSubscriptions(id string) ([]string, error) {
+func (p *PubSub) ClientSubscriptions(id string) ([]string, error) {
 	var subs []string
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -464,11 +479,12 @@ func(p *PubSub) ClientSubscriptions(id string) ([]string, error) {
 				subs = append(subs, topicID)
 			}
 		}
+		return subs, nil
 	}
-	return subs, errors.New("no topic found")
+	return nil, errors.New("no client found")
 }
 
-func(p *PubSub) UserSubscriptions(id string) ([]string, error) {
+func (p *PubSub) UserSubscriptions(id string) ([]string, error) {
 	var subs []string
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -479,18 +495,19 @@ func(p *PubSub) UserSubscriptions(id string) ([]string, error) {
 				subs = append(subs, topicID)
 			}
 		}
-	}
-	return subs, errors.New("no topic found")
-}
 
+		return subs, nil
+	}
+	return nil, errors.New("no user found")
+}
 
 func New(cfg Config) *PubSub {
 	return &PubSub{
-		clients: map[string]*client{},
-		users: map[string]*user{},
-		topics: map[string]*topic{},
+		clients:         map[string]*client{},
+		users:           map[string]*user{},
+		topics:          map[string]*topic{},
 		inactiveClients: map[string]int64{},
-		config: cfg,
+		config:          cfg,
 		broadcaster:     broadcaster.New(),
 	}
 }

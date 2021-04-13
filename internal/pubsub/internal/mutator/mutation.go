@@ -4,13 +4,13 @@ import "io"
 
 type UserDetachedMutation struct {
 	Clients []string
-	User string
-	Forced bool
+	User    string
+	Forced  bool
 }
 
 type UserAttachedMutation struct {
 	Clients []string
-	User string
+	User    string
 }
 
 type ClientUpdatedMutation struct {
@@ -24,13 +24,13 @@ type ClientsDeletedMutation struct {
 
 type TopicSubscribedMutation struct {
 	Clients []string
-	Topic string
+	Topic   string
 }
 
 type TopicUnsubscribedMutation struct {
 	Clients []string
-	Topic string
-	Forced bool
+	Topic   string
+	Forced  bool
 }
 
 type ForcedDeletionMutation struct {

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"github.com/RomanIschenko/notify/internal/pubsub/internal/broadcaster/internal/util"
 	"io"
 	"sync"
@@ -28,6 +29,7 @@ func (b *bucket) getOrCreate(id string, w io.WriteCloser, ts int64) *Session {
 	b.mu.Lock()
 	s, ok := b.sessions[id]
 	if !ok {
+		fmt.Println("creating new session")
 		s = newSession(id, w, ts)
 		b.sessions[id] = s
 	}
@@ -47,7 +49,7 @@ type Storage struct {
 }
 
 func (s *Storage) bucket(id string) *bucket {
-	return s.buckets[util.Hash(id) % len(s.buckets)]
+	return s.buckets[util.Hash(id)%len(s.buckets)]
 }
 
 func (s *Storage) GetOne(id string) (*Session, bool) {

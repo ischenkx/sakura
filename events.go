@@ -21,17 +21,17 @@ import (
 var idSeq = uint64(0)
 
 type AppEvents struct {
-	id uint64
-	closed bool
-	reg *eventsRegistry
-	onPublish []func(a *App, opts PublishOptions)
-	onConnect []func(a *App, opts ConnectOptions, c Client)
-	onReconnect []func(a *App, opts ConnectOptions, c Client)
+	id           uint64
+	closed       bool
+	reg          *eventsRegistry
+	onPublish    []func(a *App, opts PublishOptions)
+	onConnect    []func(a *App, opts ConnectOptions, c Client)
+	onReconnect  []func(a *App, opts ConnectOptions, c Client)
 	onDisconnect []func(a *App, cs Client)
 	onInactivate []func(a *App, c Client)
-	onMessage []func(a *App, c Client, message []byte)
-	onChange []func(a *App, log ChangeLog)
-	mu sync.RWMutex
+	onMessage    []func(a *App, c Client, message []byte)
+	onChange     []func(a *App, log ChangeLog)
+	mu           sync.RWMutex
 }
 
 type eventsRegistry struct {
@@ -273,5 +273,3 @@ func (hub *AppEvents) Close() error {
 
 	return nil
 }
-
-

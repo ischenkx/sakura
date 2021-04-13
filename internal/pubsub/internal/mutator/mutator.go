@@ -14,7 +14,7 @@ var stringsPool = &sync.Pool{
 type MutationType int
 
 type Mutation struct {
-	Type MutationType
+	Type  MutationType
 	Value interface{}
 }
 
@@ -100,45 +100,45 @@ func (m *mutator) Iter(f func(interface{})) {
 
 	for s, ids := range m.attachedUsers {
 		f(UserAttachedMutation{
-			User: s,
+			User:    s,
 			Clients: ids,
 		})
 	}
 
 	for s, ids := range m.detachedUsers {
 		f(UserDetachedMutation{
-			User: s,
+			User:    s,
 			Clients: ids,
 		})
 	}
 
 	for s, ids := range m.forciblyDetachedUsers {
 		f(UserDetachedMutation{
-			User: s,
+			User:    s,
 			Clients: ids,
-			Forced: true,
+			Forced:  true,
 		})
 	}
 
 	for s, ids := range m.subscribedTopics {
 		f(TopicSubscribedMutation{
-			Topic: s,
+			Topic:   s,
 			Clients: ids,
 		})
 	}
 
 	for s, ids := range m.unsubscribedTopics {
 		f(TopicUnsubscribedMutation{
-			Topic: s,
+			Topic:   s,
 			Clients: ids,
 		})
 	}
 
 	for s, ids := range m.forciblyUnsubscribedTopics {
 		f(TopicUnsubscribedMutation{
-			Topic: s,
+			Topic:   s,
 			Clients: ids,
-			Forced: true,
+			Forced:  true,
 		})
 	}
 }
@@ -188,10 +188,9 @@ func New() Mutator {
 		unsubscribedTopics:         map[string][]string{},
 		attachedUsers:              map[string][]string{},
 		detachedUsers:              map[string][]string{},
-		forciblyDetachedUsers: map[string][]string{},
+		forciblyDetachedUsers:      map[string][]string{},
 		forciblyUnsubscribedTopics: map[string][]string{},
 		updatedClients:             map[string]io.WriteCloser{},
-		deletedClients:             make([]string, 128),
+		deletedClients:             make([]string, 0, 128),
 	}
 }
-

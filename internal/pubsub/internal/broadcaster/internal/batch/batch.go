@@ -14,10 +14,10 @@ const (
 )
 
 type Batch struct {
-	bts []byte
+	bts      []byte
 	messages message.Buffer
-	hptr history.Pointer
-	hptrSet bool
+	hptr     history.Pointer
+	hptrSet  bool
 }
 
 func (b Batch) Bytes() []byte {
@@ -34,12 +34,12 @@ func (b Batch) HistoryPointer() (history.Pointer, bool) {
 
 type Batcher struct {
 	messagesToWrite, shortMessages []message.Message
-	smallBuffer, bigBuffer *bytes.Buffer
-	hptr history.Pointer
-	hptrSet bool
-	previousOp int
-	offset int
-	maxSize int
+	smallBuffer, bigBuffer         *bytes.Buffer
+	hptr                           history.Pointer
+	hptrSet                        bool
+	previousOp                     int
+	offset                         int
+	maxSize                        int
 }
 
 func (w *Batcher) encodeMessage(to io.Writer, mes message.Message) {
@@ -78,15 +78,16 @@ func (w *Batcher) resetPreviousOp() {
 	}
 }
 
-func (w *Batcher) Next() (b Batch, dataAvailable bool)  {
+func (w *Batcher) Next() (b Batch, dataAvailable bool) {
 	w.resetPreviousOp()
 	b.hptr = w.hptr
 	b.hptrSet = w.hptrSet
-
 	mes2write := w.messagesToWrite[w.offset:]
+
 	if len(mes2write) > 0 {
 		mes := mes2write[0]
-		if len(mes.Data) + 4 > w.maxSize {
+		if len(mes.Data)+4 > w.maxSize {
+
 			w.previousOp = bigBufferWriteOp
 			w.offset++
 			w.encodeMessage(w.bigBuffer, mes)
@@ -95,7 +96,7 @@ func (w *Batcher) Next() (b Batch, dataAvailable bool)  {
 			dataAvailable = true
 			return
 		}
-		if len(mes.Data) + 4 + w.smallBuffer.Len() > w.maxSize {
+		if len(mes.Data)+4+w.smallBuffer.Len() > w.maxSize {
 			w.previousOp = smallBufferWriteOp
 			b.messages = message.BufferFrom(w.shortMessages)
 			b.bts = w.smallBuffer.Bytes()
@@ -120,11 +121,9 @@ func (w *Batcher) Next() (b Batch, dataAvailable bool)  {
 
 func NewBatcher(maxSize int) *Batcher {
 	return &Batcher{
-		smallBuffer:     bytes.NewBuffer(make([]byte, 0, 2 << 10)),
-		bigBuffer:       bytes.NewBuffer(make([]byte, 0, 2 << 18)),
-		previousOp:      -1,
-		maxSize:         maxSize,
+		smallBuffer: bytes.NewBuffer(make([]byte, 0, 2<<10)),
+		bigBuffer:   bytes.NewBuffer(make([]byte, 0, 2<<18)),
+		previousOp:  -1,
+		maxSize:     maxSize,
 	}
 }
-
-

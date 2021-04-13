@@ -2,7 +2,7 @@ package events
 
 import "encoding/json"
 
-type JSONCodec struct {}
+type JSONCodec struct{}
 
 func (JSONCodec) Marshal(data interface{}) ([]byte, error) {
 	return json.Marshal(data)

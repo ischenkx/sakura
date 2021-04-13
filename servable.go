@@ -4,7 +4,7 @@ import "time"
 
 type servable App
 
-func (s *servable) Connect(auth string, options ConnectOptions) (Client, error){
+func (s *servable) Connect(auth string, options ConnectOptions) (Client, error) {
 	return (*App)(s).connect(options, auth)
 }
 
@@ -20,8 +20,6 @@ func (s *servable) Inactivate(id string) {
 func (s *servable) HandleMessage(client Client, data []byte) {
 	s.eventsRegistry.emitMessage((*App)(s), client, data)
 }
-
-
 
 type Servable interface {
 	Connect(auth string, options ConnectOptions) (Client, error)

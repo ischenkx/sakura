@@ -12,8 +12,8 @@ type Client interface {
 }
 
 type client struct {
-	id, user string
-	meta *sync.Map
+	id, user      string
+	meta          *sync.Map
 	subscriptions subscription.List
 }
 

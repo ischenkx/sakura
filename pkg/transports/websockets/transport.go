@@ -2,7 +2,6 @@ package websockets
 
 import (
 	"errors"
-	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"net"
 )
@@ -15,7 +14,7 @@ func (t *Transport) Write(d []byte) (int, error) {
 	if t.conn == nil {
 		return 0, errors.New("connection is closed or not open")
 	}
-	return len(d), wsutil.WriteServerMessage(t.conn, ws.OpText, d)
+	return len(d), wsutil.WriteServerBinary(t.conn, d)
 }
 
 func (t *Transport) Close() error {

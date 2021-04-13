@@ -1,9 +1,12 @@
 # Notify
-Tiny Pub/Sub library. It is supposed to delivery notifications
-to your clients via WebSockets/UDP/TCP/(any other transport)
+
+Tiny Pub/Sub library. It is supposed to delivery notifications to your clients via WebSockets/UDP/TCP/(any other
+transport)
 
 # Example
+
 Let's create a simple chat server
+
 ```go
 // server.go
 package main
@@ -96,11 +99,13 @@ func DataHandler(app *notify.App, data notify.IncomingData) {
 ```
 
 # Roadmap
+
 - [x] Pub/Sub
 - [x] WebSocket transport
 - [x] Long-Polling transport (sockjs server)
 
 # Cluster Roadmap
+
 - [x] Basic cluster
 - [ ] Proper implementation of server registry
 - [ ] Proper implementation of api service

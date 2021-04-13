@@ -21,6 +21,3 @@ func (t *Transport) Close() error {
 func (t *Transport) Open() bool {
 	return t.session.GetSessionState() != sockjs.SessionClosed
 }
-
-
-

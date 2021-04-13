@@ -2,10 +2,12 @@ package notify
 
 import "github.com/RomanIschenko/notify/internal/pubsub"
 
-type PublishOptions 	= pubsub.PublishOptions
-type SubscribeOptions 	= pubsub.SubscribeOptions
-type UnsubscribeOptions = pubsub.UnsubscribeOptions
-type ConnectOptions 	= pubsub.ConnectOptions
-type DisconnectOptions 	= pubsub.DisconnectOptions
-type Client 			= pubsub.Client
-type ChangeLog			= pubsub.ChangeLog
+type (
+	PublishOptions     = pubsub.PublishOptions
+	SubscribeOptions   = pubsub.SubscribeOptions
+	UnsubscribeOptions = pubsub.UnsubscribeOptions
+	ConnectOptions     = pubsub.ConnectOptions
+	DisconnectOptions  = pubsub.DisconnectOptions
+	ChangeLog          = pubsub.ChangeLog
+	Client			   = pubsub.Client
+)

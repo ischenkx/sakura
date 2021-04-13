@@ -7,5 +7,5 @@ type Message struct {
 func New(data []byte) Message {
 	return Message{
 		Data: data,
-		}
+	}
 }

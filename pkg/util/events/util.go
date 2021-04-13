@@ -12,11 +12,12 @@ func parseIncomingData(data []byte) (string, []byte, error) {
 	if len(data) < 2 {
 		return "", nil, errors.New("failed to parse event #1")
 	}
+
 	length := data[0]
 	if len(data) < 1+int(length) {
 		return "", nil, errors.New("failed to parse event #2")
 	}
-	name := data[1:1+length]
+	name := data[1 : 1+length]
 	event := data[1+length:]
 	return string(name), event, nil
 }

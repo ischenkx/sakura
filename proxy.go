@@ -9,16 +9,16 @@ import (
 var proxyIdSeq = uint64(0)
 
 type Proxy struct {
-	connect []func(*App, *ConnectOptions)
-	disconnect []func(*App, *DisconnectOptions)
-	inactivate []func(*App,  Client)
-	subscribe []func(*App, *SubscribeOptions)
+	connect     []func(*App, *ConnectOptions)
+	disconnect  []func(*App, *DisconnectOptions)
+	inactivate  []func(*App, Client)
+	subscribe   []func(*App, *SubscribeOptions)
 	unsubscribe []func(*App, *UnsubscribeOptions)
-	publish []func(*App, *PublishOptions)
-	reg *proxyRegistry
-	closed bool
-	id uint64
-	mu sync.RWMutex
+	publish     []func(*App, *PublishOptions)
+	reg         *proxyRegistry
+	closed      bool
+	id          uint64
+	mu          sync.RWMutex
 }
 
 func newProxy() *Proxy {
@@ -26,7 +26,7 @@ func newProxy() *Proxy {
 }
 
 type proxyRegistry struct {
-	mu sync.RWMutex
+	mu   sync.RWMutex
 	hubs map[uint64]*Proxy
 }
 
@@ -144,7 +144,7 @@ func (h *Proxy) OnDisconnect(f func(*App, *DisconnectOptions)) error {
 	return nil
 }
 
-func (h *Proxy) OnInactivation(f func(*App,  Client)) error {
+func (h *Proxy) OnInactivation(f func(*App, Client)) error {
 	if f == nil {
 		return nil
 	}

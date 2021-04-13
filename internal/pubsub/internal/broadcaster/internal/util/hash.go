@@ -7,4 +7,3 @@ func Hash(id string) int {
 	h.Write([]byte(id))
 	return int(h.Sum32())
 }
-

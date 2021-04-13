@@ -1,7 +1,6 @@
 package subscription
 
 type Subscription struct {
-	Active bool
+	Active    bool
 	TimeStamp int64
 }
-

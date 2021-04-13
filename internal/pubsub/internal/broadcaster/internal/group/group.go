@@ -23,14 +23,14 @@ func (info sessionInfo) active() bool {
 type Group struct {
 	mapper   map[string]sessionInfo
 	sessions []*session.Session
-	buffer	 message.Buffer
-	history *history.History
+	buffer   message.Buffer
+	history  *history.History
 	enqueued bool
 
-	mu       sync.RWMutex
+	mu sync.RWMutex
 }
 
-func (g *Group) Push(q chan <- common.Flusher, messages ...message.Message) {
+func (g *Group) Push(q chan<- common.Flusher, messages ...message.Message) {
 	g.mu.Lock()
 	g.buffer.Push(messages...)
 	toBeEnqueued := !g.enqueued && g.buffer.Len() > 0
@@ -93,12 +93,10 @@ func (g *Group) delete(ts int64, ids []string, forced bool) {
 			continue
 		}
 
-
-
 		if info.active() {
-			last := g.sessions[len(g.sessions) - 1]
+			last := g.sessions[len(g.sessions)-1]
 			g.sessions[info.index] = last
-			g.sessions = g.sessions[:len(g.sessions) - 1]
+			g.sessions = g.sessions[:len(g.sessions)-1]
 			lastInfo := g.mapper[last.ID()]
 			lastInfo.index = info.index
 			info.index = -1

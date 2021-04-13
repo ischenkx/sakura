@@ -25,9 +25,9 @@ type SubscribeOptions struct {
 }
 
 type UnsubscribeOptions struct {
-	Clients []string
-	Users []string
-	All bool
+	Clients      []string
+	Users        []string
+	All          bool
 	AllFromTopic bool
 	// NOT IMPLEMENTED!
 	AllClients bool

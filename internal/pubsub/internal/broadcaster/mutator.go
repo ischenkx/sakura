@@ -13,7 +13,7 @@ var mutatorsPool = &sync.Pool{
 
 type Mutator struct {
 	mutator.Mutator
-	closed	  bool
+	closed    bool
 	timestamp int64
 	b         *Broadcaster
 }

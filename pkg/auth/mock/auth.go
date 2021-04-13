@@ -4,7 +4,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type Auth struct {}
+type Auth struct{}
 
 func (a Auth) Authorize(string) (string, string, error) {
 	return uuid.New().String(), uuid.New().String(), nil

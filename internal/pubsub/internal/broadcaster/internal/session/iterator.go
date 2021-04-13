@@ -1,7 +1,7 @@
 package session
 
 type Iterator struct {
-	s *Storage
+	s   *Storage
 	ids []string
 	idx int
 	cur *Session

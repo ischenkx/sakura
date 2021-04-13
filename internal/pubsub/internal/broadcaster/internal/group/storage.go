@@ -62,7 +62,7 @@ type Storage struct {
 }
 
 func (s *Storage) bucket(id string) *bucket {
-	return s.buckets[util.Hash(id) % len(s.buckets)]
+	return s.buckets[util.Hash(id)%len(s.buckets)]
 }
 
 func (s *Storage) Join(id string, ts int64, clients []*session.Session) {
@@ -74,6 +74,7 @@ func (s *Storage) Leave(id string, ts int64, clients []string, forced bool) {
 }
 
 func (s *Storage) Get(id string) (*Group, bool) {
+
 	return s.bucket(id).get(id)
 }
 

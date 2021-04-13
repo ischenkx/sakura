@@ -18,7 +18,7 @@ var bufferPool = &sync.Pool{
 
 type Buffer struct {
 	messages []Message
-	pooled bool
+	pooled   bool
 }
 
 func (b *Buffer) Len() int {
@@ -52,13 +52,13 @@ func (b *Buffer) Slice() []Message {
 func BufferFrom(messages []Message) Buffer {
 	return Buffer{
 		messages: messages,
-		pooled: false,
+		pooled:   false,
 	}
 }
 
 func NewBuffer() Buffer {
 	return Buffer{
 		messages: bufferPool.Get().([]Message),
-		pooled: true,
+		pooled:   true,
 	}
 }

@@ -10,16 +10,16 @@ import (
 )
 
 type Session struct {
-	w io.WriteCloser
+	w          io.WriteCloser
 	lastUpdate int64
-	enqueued bool
-	id string
-	histories history.PointerStorage
-	buffer message.Buffer
-	mu sync.RWMutex
+	enqueued   bool
+	id         string
+	histories  history.PointerStorage
+	buffer     message.Buffer
+	mu         sync.RWMutex
 }
 
-func (s *Session) Update(queue chan <- common.Flusher, w io.WriteCloser, ts int64) {
+func (s *Session) Update(queue chan<- common.Flusher, w io.WriteCloser, ts int64) {
 	s.mu.Lock()
 	if s.lastUpdate > ts {
 		s.mu.Unlock()
@@ -82,7 +82,7 @@ func (s *Session) Write(batch batch.Batch) {
 	s.mu.Unlock()
 }
 
-func (s *Session) Push(q chan <- common.Flusher, messages ...message.Message) {
+func (s *Session) Push(q chan<- common.Flusher, messages ...message.Message) {
 	s.mu.Lock()
 	s.buffer.Push(messages...)
 	toBeEnqueued := !s.enqueued && len(messages) > 0 && s.w != nil

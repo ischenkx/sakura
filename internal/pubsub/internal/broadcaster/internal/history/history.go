@@ -1,7 +1,6 @@
 package history
 
 import (
-	"fmt"
 	"github.com/RomanIschenko/notify/internal/pubsub/internal/broadcaster/internal/message"
 
 	"sync"
@@ -15,10 +14,10 @@ var bufferPool = &sync.Pool{
 
 type History struct {
 	maxlen int
-	epoch int64
+	epoch  int64
 	curlen int
-	buf []message.Message
-	mu sync.RWMutex
+	buf    []message.Message
+	mu     sync.RWMutex
 }
 
 func (h *History) push(messages ...message.Message) {
@@ -39,11 +38,9 @@ func (h *History) Push(messages ...message.Message) Pointer {
 
 	h.mu.Lock()
 	h.push(messages...)
-	if h.curlen > h.maxlen {
-		fmt.Println("EROROROROROROR:", len(h.buf))
-	}
+
 	p := Pointer{
-		h:    h,
+		h: h,
 		info: SnapshotInfo{
 			offset: h.curlen,
 			epoch:  h.epoch,

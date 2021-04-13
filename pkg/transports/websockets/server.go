@@ -14,9 +14,9 @@ import (
 var logger = logrus.WithField("source", "ws_logger")
 
 type Server struct {
-	mu 			 sync.RWMutex
-	app			 notify.Servable
-	upgrader	 ws.HTTPUpgrader
+	mu       sync.RWMutex
+	app      notify.Servable
+	upgrader ws.HTTPUpgrader
 }
 
 func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
@@ -28,7 +28,7 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 	}
 
 	t := &Transport{
-		conn:  conn,
+		conn: conn,
 	}
 	auth, _, err := wsutil.ReadClientData(conn)
 	if err != nil {

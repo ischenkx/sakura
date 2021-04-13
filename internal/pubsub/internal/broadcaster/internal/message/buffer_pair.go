@@ -1,7 +1,7 @@
 package message
 
 type BufferPair struct {
-	cur int
+	cur     int
 	buffers [2]Buffer
 }
 
@@ -23,7 +23,7 @@ func (p *BufferPair) Close() {
 
 func NewBufferPair() *BufferPair {
 	return &BufferPair{
-		cur:     0,
+		cur: 0,
 		buffers: [2]Buffer{
 			NewBuffer(),
 			NewBuffer(),

@@ -7,9 +7,9 @@ import (
 )
 
 type Config struct {
-	ID            string
-	Auth          Auth
-	CleanInterval time.Duration
+	ID               string
+	Auth             Auth
+	CleanInterval    time.Duration
 	InvalidationTime time.Duration
 }
 
@@ -40,30 +40,26 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func(app *App) Subscribe(opts SubscribeOptions) {
+func (app *App) Subscribe(opts SubscribeOptions) ChangeLog {
 	app.proxyRegistry.emitSubscribe(app, &opts)
 	changelog := app.pubsub.Subscribe(opts)
 	app.eventsRegistry.emitChange(app, changelog)
-	// TODO
-	// add unsubscribe event support
+	return changelog
 }
 
-func(app *App) Unsubscribe(opts UnsubscribeOptions) {
+func (app *App) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
 	app.proxyRegistry.emitUnsubscribe(app, &opts)
 	changelog := app.pubsub.Unsubscribe(opts)
-
 	app.eventsRegistry.emitChange(app, changelog)
-
-	// TODO
-	// add unsubscribe event support
+	return changelog
 }
 
-func(app *App) Publish(opts PublishOptions) {
+func (app *App) Publish(opts PublishOptions) {
 	app.proxyRegistry.emitPublish(app, &opts)
 	app.pubsub.Publish(opts)
 }
 
-func(app *App) Disconnect(opts DisconnectOptions)  {
+func (app *App) Disconnect(opts DisconnectOptions) {
 	app.proxyRegistry.emitDisconnect(app, &opts)
 	clients, changelog := app.pubsub.Disconnect(opts)
 	app.eventsRegistry.emitChange(app, changelog)
@@ -73,7 +69,7 @@ func(app *App) Disconnect(opts DisconnectOptions)  {
 }
 
 func (app *App) startCleaner(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 20)
+	ticker := time.NewTicker(app.config.CleanInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -94,43 +90,42 @@ func (app *App) Start(ctx context.Context) {
 	go app.startCleaner(ctx)
 }
 
-func(app *App) Servable() Servable {
+func (app *App) Servable() Servable {
 	return (*servable)(app)
 }
 
-func(app *App) Events() *AppEvents {
+func (app *App) Events() *AppEvents {
 	return app.eventsRegistry.newHub()
 }
 
-func(app *App) Proxy() *Proxy {
+func (app *App) Proxy() *Proxy {
 	return app.proxyRegistry.newHub()
 }
 
-func(app *App) Metrics() Metrics {
+func (app *App) Metrics() Metrics {
 	return Metrics{
 		PubSubMetrics: app.pubsub.Metrics(),
 	}
 }
 
-func(app *App) IsSubscribed(client string, topic string) (bool, error) {
+func (app *App) IsSubscribed(client string, topic string) (bool, error) {
 	return app.pubsub.IsSubscribed(client, topic)
 }
 
-func(app *App) IsUserSubscribed(user string, topic string) (bool, error) {
+func (app *App) IsUserSubscribed(user string, topic string) (bool, error) {
 	return app.pubsub.IsUserSubscribed(user, topic)
 
 }
 
-func(app *App) TopicSubscribers(id string) ([]string, error) {
+func (app *App) TopicSubscribers(id string) ([]string, error) {
 	return app.pubsub.TopicSubscribers(id)
 }
 
-func(app *App) ClientSubscriptions(id string) ([]string, error) {
+func (app *App) ClientSubscriptions(id string) ([]string, error) {
 	return app.pubsub.ClientSubscriptions(id)
-
 }
 
-func(app *App) UserSubscriptions(userID string) ([]string, error) {
+func (app *App) UserSubscriptions(userID string) ([]string, error) {
 	return app.pubsub.UserSubscriptions(userID)
 }
 
@@ -159,6 +154,10 @@ func (app *App) connect(opts ConnectOptions, auth string) (Client, error) {
 	}
 
 	return client, nil
+}
+
+func (app *App) Action() ActionBuilder {
+	return ActionBuilder{app: app}
 }
 
 func New(config Config) *App {
