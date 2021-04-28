@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"sync"
-	"time"
 )
 
 var logger = logrus.WithField("source", "sockjs_server")
@@ -31,9 +30,11 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 	}
 
 	opts := pubsub.ConnectOptions{
-		Transport: t,
-		Seq:       time.Now().UnixNano(),
-		MetaInfo:  session.Request(),
+		ClientID:  "",
+		UserID:    "",
+		Writer:    nil,
+		TimeStamp: 0,
+		Meta:      nil,
 	}
 	s.mu.RLock()
 	app := s.app

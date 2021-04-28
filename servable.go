@@ -13,12 +13,12 @@ func (s *servable) Inactivate(id string) {
 	if err != nil {
 		return
 	}
-	s.eventsRegistry.emitInactivate((*App)(s), client)
-	s.eventsRegistry.emitChange((*App)(s), changelog)
+	s.events.emitInactivate((*App)(s), client)
+	s.events.emitChange((*App)(s), changelog)
 }
 
 func (s *servable) HandleMessage(client Client, data []byte) {
-	s.eventsRegistry.emitMessage((*App)(s), client, data)
+	s.events.emitMessage((*App)(s), client, data)
 }
 
 type Servable interface {

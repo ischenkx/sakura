@@ -1,6 +1,8 @@
 package notify
 
-import "github.com/RomanIschenko/notify/internal/pubsub"
+import (
+	"github.com/RomanIschenko/notify/pubsub"
+)
 
 type (
 	PublishOptions     = pubsub.PublishOptions
@@ -9,5 +11,6 @@ type (
 	ConnectOptions     = pubsub.ConnectOptions
 	DisconnectOptions  = pubsub.DisconnectOptions
 	ChangeLog          = pubsub.ChangeLog
-	Client			   = pubsub.Client
+	Client             = pubsub.Client
+	IDs                = []string
 )

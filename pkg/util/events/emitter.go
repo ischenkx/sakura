@@ -3,6 +3,7 @@ package events
 import (
 	"fmt"
 	"github.com/RomanIschenko/notify"
+	"github.com/RomanIschenko/notify/pubsub/message"
 	"reflect"
 	"sync"
 )
@@ -13,12 +14,11 @@ import (
 // 2) from the second to 1+<NAME_LENGTH> is the name of event
 // 3) other bytes are json encoded data
 type Emitter struct {
-	app      *notify.App
-	handlers map[string]*handler
-	codec    Codec
-
-	events *notify.AppEvents
-
+	app             *notify.App
+	appReflectValue reflect.Value
+	handlers        map[string]*handler
+	codec           Codec
+	events          *notify.Events
 	rv reflect.Value
 	mu sync.RWMutex
 }
@@ -39,9 +39,9 @@ func (e *Emitter) Emit(ev Event) {
 		WithClients(ev.Clients...).
 		WithUsers(ev.Users...).
 		WithTopics(ev.Topics...).
-		WithTimeStamp(ev.Seq).
+		WithTimeStamp(ev.TimeStamp).
 		WithMetaInfo(ev.MetaInfo).
-		Publish(data)
+		Publish(message.New(data))
 }
 
 func (e *Emitter) On(name string, handler interface{}) {
@@ -52,6 +52,7 @@ func (e *Emitter) On(name string, handler interface{}) {
 
 func (e *Emitter) processIncomingEvent(a *notify.App, client notify.Client, data []byte) {
 	name, jsonEvent, err := parseIncomingData(data)
+
 	if err != nil {
 		logger.Errorln(err)
 		return
@@ -62,7 +63,7 @@ func (e *Emitter) processIncomingEvent(a *notify.App, client notify.Client, data
 	if !ok {
 		return
 	}
-	hnd.call(reflect.ValueOf(e.app), e.rv, client, jsonEvent)
+	hnd.call(e.appReflectValue, e.rv, client, jsonEvent)
 }
 
 func (e *Emitter) Close() {
@@ -80,8 +81,9 @@ func NewEmitter(app *notify.App, codec Codec) *Emitter {
 		mu:       sync.RWMutex{},
 		codec:    codec,
 	}
+	emitter.appReflectValue = reflect.ValueOf(app)
 	emitter.rv = reflect.ValueOf(emitter)
-	emitter.events = app.Events()
+	emitter.events = app.Events(notify.PluginPriority)
 	emitter.events.OnMessage(emitter.processIncomingEvent)
 	return emitter
 }

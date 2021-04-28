@@ -2,15 +2,19 @@ package notify
 
 import (
 	"context"
-	"github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/RomanIschenko/notify/default/batchproto"
+	basicps "github.com/RomanIschenko/notify/default/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/RomanIschenko/notify/pubsub/protocol"
 	"time"
 )
 
 type Config struct {
-	ID               string
-	Auth             Auth
-	CleanInterval    time.Duration
-	InvalidationTime time.Duration
+	ID            string
+	Auth          Auth
+	PubSub        pubsub.Engine
+	Protocol 	  protocol.Provider
+	CleanInterval time.Duration
 }
 
 func (cfg *Config) validate() {
@@ -19,21 +23,25 @@ func (cfg *Config) validate() {
 	}
 
 	if cfg.CleanInterval <= 0 {
-		cfg.CleanInterval = time.Second * 25
+		cfg.CleanInterval = time.Minute
 	}
 
-	if cfg.InvalidationTime < 0 {
-		cfg.InvalidationTime = time.Minute
+	if cfg.PubSub == nil {
+		cfg.PubSub = basicps.New(basicps.Config{
+			ProtoProvider:    batchproto.NewProvider(1024),
+			InvalidationTime: time.Minute,
+			CleanInterval:    cfg.CleanInterval,
+		})
 	}
 }
 
 type App struct {
-	id             string
-	pubsub         *pubsub.PubSub
-	auth           Auth
-	config         Config
-	proxyRegistry  *proxyRegistry
-	eventsRegistry *eventsRegistry
+	id     string
+	pubsub pubsub.Engine
+	auth   Auth
+	config Config
+	proxy  *proxyRegistry
+	events *eventsRegistry
 }
 
 func (app *App) ID() string {
@@ -41,30 +49,30 @@ func (app *App) ID() string {
 }
 
 func (app *App) Subscribe(opts SubscribeOptions) ChangeLog {
-	app.proxyRegistry.emitSubscribe(app, &opts)
+	app.proxy.emitSubscribe(app, &opts)
 	changelog := app.pubsub.Subscribe(opts)
-	app.eventsRegistry.emitChange(app, changelog)
+	app.events.emitChange(app, changelog)
 	return changelog
 }
 
 func (app *App) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
-	app.proxyRegistry.emitUnsubscribe(app, &opts)
+	app.proxy.emitUnsubscribe(app, &opts)
 	changelog := app.pubsub.Unsubscribe(opts)
-	app.eventsRegistry.emitChange(app, changelog)
+	app.events.emitChange(app, changelog)
 	return changelog
 }
 
 func (app *App) Publish(opts PublishOptions) {
-	app.proxyRegistry.emitPublish(app, &opts)
+	app.proxy.emitPublish(app, &opts)
 	app.pubsub.Publish(opts)
 }
 
 func (app *App) Disconnect(opts DisconnectOptions) {
-	app.proxyRegistry.emitDisconnect(app, &opts)
+	app.proxy.emitDisconnect(app, &opts)
 	clients, changelog := app.pubsub.Disconnect(opts)
-	app.eventsRegistry.emitChange(app, changelog)
+	app.events.emitChange(app, changelog)
 	for _, c := range clients {
-		app.eventsRegistry.emitDisconnect(app, c)
+		app.events.emitDisconnect(app, c)
 	}
 }
 
@@ -78,9 +86,9 @@ func (app *App) startCleaner(ctx context.Context) {
 		case <-ticker.C:
 			clients, changelog := app.pubsub.Clean()
 			for _, c := range clients {
-				app.eventsRegistry.emitDisconnect(app, c)
+				app.events.emitDisconnect(app, c)
 			}
-			app.eventsRegistry.emitChange(app, changelog)
+			app.events.emitChange(app, changelog)
 		}
 	}
 }
@@ -94,18 +102,12 @@ func (app *App) Servable() Servable {
 	return (*servable)(app)
 }
 
-func (app *App) Events() *AppEvents {
-	return app.eventsRegistry.newHub()
+func (app *App) Events(p Priority) *Events {
+	return app.events.new(p)
 }
 
-func (app *App) Proxy() *Proxy {
-	return app.proxyRegistry.newHub()
-}
-
-func (app *App) Metrics() Metrics {
-	return Metrics{
-		PubSubMetrics: app.pubsub.Metrics(),
-	}
+func (app *App) Proxy(p Priority) *Proxy {
+	return app.proxy.new(p)
 }
 
 func (app *App) IsSubscribed(client string, topic string) (bool, error) {
@@ -114,7 +116,6 @@ func (app *App) IsSubscribed(client string, topic string) (bool, error) {
 
 func (app *App) IsUserSubscribed(user string, topic string) (bool, error) {
 	return app.pubsub.IsUserSubscribed(user, topic)
-
 }
 
 func (app *App) TopicSubscribers(id string) ([]string, error) {
@@ -139,18 +140,18 @@ func (app *App) connect(opts ConnectOptions, auth string) (Client, error) {
 		opts.UserID = user
 	}
 
-	app.proxyRegistry.emitConnect(app, &opts)
+	app.proxy.emitConnect(app, &opts)
 	client, changelog, reconnected, err := app.pubsub.Connect(opts)
 
 	if err != nil {
 		return nil, err
 	}
 
-	app.eventsRegistry.emitChange(app, changelog)
+	app.events.emitChange(app, changelog)
 	if reconnected {
-		app.eventsRegistry.emitReconnect(app, opts, client)
+		app.events.emitReconnect(app, opts, client)
 	} else {
-		app.eventsRegistry.emitConnect(app, opts, client)
+		app.events.emitConnect(app, opts, client)
 	}
 
 	return client, nil
@@ -162,17 +163,14 @@ func (app *App) Action() ActionBuilder {
 
 func New(config Config) *App {
 	config.validate()
-	h := pubsub.New(pubsub.Config{
-		InvalidationTime: config.InvalidationTime,
-		CleanInterval:    config.CleanInterval,
-	})
+
 	app := &App{
-		id:             config.ID,
-		pubsub:         h,
-		auth:           config.Auth,
-		eventsRegistry: newEventsRegistry(),
-		proxyRegistry:  newProxyRegistry(),
-		config:         config,
+		id:     config.ID,
+		pubsub: config.PubSub,
+		auth:   config.Auth,
+		events: newEventsRegistry(),
+		proxy:  newProxyRegistry(),
+		config: config,
 	}
 	return app
 }

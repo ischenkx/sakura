@@ -1,13 +1,13 @@
 package notify
 
 import (
+	"container/heap"
 	"errors"
 	"sync"
-	"sync/atomic"
 )
 
 // TODO
-// Events 2.0
+// Proxy 2.0
 // Connect - first connection of the Client
 // Reconnect - Client reconnected
 // Disconnect - Client disconnected and was deleted
@@ -18,206 +18,169 @@ import (
 // Subscribe - subscribed
 // Unsubscribe - unsubscribed
 
-var idSeq = uint64(0)
+type (
+	PublishHandler    func(a *App, opts PublishOptions)
+	ConnectHandler    func(a *App, opts ConnectOptions, c Client)
+	ReconnectHandler  func(a *App, opts ConnectOptions, c Client)
+	DisconnectHandler func(a *App, cs Client)
+	InactivateHandler func(a *App, c Client)
+	MessageHandler    func(a *App, c Client, message []byte)
+	ChangeHandler     func(a *App, log ChangeLog)
+)
 
-type AppEvents struct {
-	id           uint64
+type Events struct {
+	id           int64
 	closed       bool
-	reg          *eventsRegistry
-	onPublish    []func(a *App, opts PublishOptions)
-	onConnect    []func(a *App, opts ConnectOptions, c Client)
-	onReconnect  []func(a *App, opts ConnectOptions, c Client)
-	onDisconnect []func(a *App, cs Client)
-	onInactivate []func(a *App, c Client)
-	onMessage    []func(a *App, c Client, message []byte)
-	onChange     []func(a *App, log ChangeLog)
+	reg          *eventsStorage
+	onPublish    []PublishHandler
+	onConnect    []ConnectHandler
+	onReconnect  []ReconnectHandler
+	onDisconnect []DisconnectHandler
+	onInactivate []InactivateHandler
+	onMessage    []MessageHandler
+	onChange     []ChangeHandler
 	mu           sync.RWMutex
 }
 
-type eventsRegistry struct {
-	hubs map[uint64]*AppEvents
-	mu   sync.RWMutex
-}
-
-func newEventsRegistry() *eventsRegistry {
-	return &eventsRegistry{
-		hubs: map[uint64]*AppEvents{},
-	}
-}
-
-func (reg *eventsRegistry) newHub() *AppEvents {
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	id := atomic.AddUint64(&idSeq, 1)
-
-	h := &AppEvents{
-		id:  id,
-		reg: reg,
-	}
-
-	reg.hubs[id] = h
-
-	return h
-}
-
-func (hub *AppEvents) emitReconnect(a *App, opts ConnectOptions, c Client) {
+func (hub *Events) emitReconnect(wg *sync.WaitGroup, a *App, opts ConnectOptions, c Client) {
 	hub.mu.RLock()
 	for _, handler := range hub.onReconnect {
-		handler(a, opts, c)
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, opts, c)
+			wg.Done()
+		}()
 	}
 	hub.mu.RUnlock()
 }
 
-func (reg *eventsRegistry) emitReconnect(a *App, opts ConnectOptions, c Client) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitReconnect(a, opts, c)
+func (hub *Events) emitPublish(wg *sync.WaitGroup, a *App, opts PublishOptions) {
+	hub.mu.RLock()
+	for _, handler := range hub.onPublish {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, opts)
+			wg.Done()
+		}()
 	}
-	reg.mu.RUnlock()
+	hub.mu.RUnlock()
 }
 
-func (hub *AppEvents) OnReconnect(f func(a *App, opts ConnectOptions, l Client)) error {
+func (hub *Events) emitMessage(wg *sync.WaitGroup, a *App, c Client, data []byte) {
+	hub.mu.RLock()
+	for _, handler := range hub.onMessage {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, c, data)
+			wg.Done()
+		}()
+	}
+	hub.mu.RUnlock()
+}
+
+func (hub *Events) emitConnect(wg *sync.WaitGroup, a *App, opts ConnectOptions, c Client) {
+	hub.mu.RLock()
+	for _, handler := range hub.onConnect {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, opts, c)
+			wg.Done()
+		}()
+	}
+	hub.mu.RUnlock()
+}
+
+func (hub *Events) emitDisconnect(wg *sync.WaitGroup, a *App, c Client) {
+	hub.mu.RLock()
+	for _, handler := range hub.onDisconnect {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, c)
+			wg.Done()
+		}()
+	}
+	hub.mu.RUnlock()
+}
+
+func (hub *Events) emitInactivate(wg *sync.WaitGroup, a *App, c Client) {
+	hub.mu.RLock()
+	for _, handler := range hub.onInactivate {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, c)
+			wg.Done()
+		}()
+	}
+	hub.mu.RUnlock()
+}
+
+func (hub *Events) emitChange(wg *sync.WaitGroup, a *App, c ChangeLog) {
+	hub.mu.RLock()
+	for _, handler := range hub.onChange {
+		h := handler
+		wg.Add(1)
+		go func() {
+			h(a, c)
+			wg.Done()
+		}()
+	}
+	hub.mu.RUnlock()
+}
+
+func (hub *Events) OnConnect(f ConnectHandler) error {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	if hub.closed {
-		return errors.New("AppEvents: closed")
+		return errors.New("Proxy: closed")
 	}
-
-	hub.onReconnect = append(hub.onReconnect, f)
+	hub.onConnect = append(hub.onConnect, f)
 	return nil
 }
 
-func (hub *AppEvents) emitPublish(a *App, opts PublishOptions) {
-	hub.mu.RLock()
-	for _, handler := range hub.onPublish {
-		handler(a, opts)
-	}
-	hub.mu.RUnlock()
-}
-
-func (reg *eventsRegistry) emitPublish(a *App, opts PublishOptions) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitPublish(a, opts)
-
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnPublish(f func(*App, PublishOptions)) error {
+func (hub *Events) OnPublish(f PublishHandler) error {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	if hub.closed {
-		return errors.New("AppEvents: closed")
+		return errors.New("Proxy: closed")
 	}
 
 	hub.onPublish = append(hub.onPublish, f)
 	return nil
 }
 
-func (hub *AppEvents) emitMessage(a *App, c Client, data []byte) {
-	hub.mu.RLock()
-	for _, handler := range hub.onMessage {
-		handler(a, c, data)
-	}
-	hub.mu.RUnlock()
-}
-
-func (reg *eventsRegistry) emitMessage(a *App, c Client, data []byte) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitMessage(a, c, data)
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnMessage(h func(a *App, c Client, data []byte)) error {
+func (hub *Events) OnMessage(h MessageHandler) error {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	if hub.closed {
-		return errors.New("AppEvents: closed")
+		return errors.New("Proxy: closed")
 	}
 
 	hub.onMessage = append(hub.onMessage, h)
 	return nil
 }
 
-func (hub *AppEvents) emitConnect(a *App, opts ConnectOptions, c Client) {
-	hub.mu.RLock()
-	for _, handler := range hub.onConnect {
-		handler(a, opts, c)
-	}
-	hub.mu.RUnlock()
-}
-
-func (reg *eventsRegistry) emitConnect(a *App, opts ConnectOptions, c Client) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitConnect(a, opts, c)
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnConnect(f func(a *App, opts ConnectOptions, c Client)) error {
+func (hub *Events) OnDisconnect(f DisconnectHandler) error {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 	if hub.closed {
-		return errors.New("AppEvents: closed")
-	}
-	hub.onConnect = append(hub.onConnect, f)
-	return nil
-}
-
-func (hub *AppEvents) emitDisconnect(a *App, client Client) {
-	hub.mu.RLock()
-	for _, handler := range hub.onDisconnect {
-		handler(a, client)
-	}
-	hub.mu.RUnlock()
-}
-
-func (reg *eventsRegistry) emitDisconnect(a *App, client Client) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitDisconnect(a, client)
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnDisconnect(f func(a *App, clients Client)) error {
-	hub.mu.Lock()
-	defer hub.mu.Unlock()
-	if hub.closed {
-		return errors.New("AppEvents: closed")
+		return errors.New("Proxy: closed")
 	}
 	hub.onDisconnect = append(hub.onDisconnect, f)
 	return nil
 }
 
-func (hub *AppEvents) emitInactivate(a *App, c Client) {
-	hub.mu.RLock()
-	for _, handler := range hub.onInactivate {
-		handler(a, c)
-	}
-	hub.mu.RUnlock()
-}
-
-func (reg *eventsRegistry) emitInactivate(a *App, c Client) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitInactivate(a, c)
-
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnInactivate(f func(a *App, c Client)) error {
+func (hub *Events) OnInactivate(f InactivateHandler) error {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
 	if hub.closed {
-		return errors.New("AppEvents: closed")
+		return errors.New("Proxy: closed")
 	}
 
 	hub.onInactivate = append(hub.onInactivate, f)
@@ -225,34 +188,28 @@ func (hub *AppEvents) OnInactivate(f func(a *App, c Client)) error {
 	return nil
 }
 
-func (hub *AppEvents) emitChange(a *App, c ChangeLog) {
-	hub.mu.RLock()
-	for _, handler := range hub.onChange {
-		handler(a, c)
+func (hub *Events) OnReconnect(f ReconnectHandler) error {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if hub.closed {
+		return errors.New("Proxy: closed")
 	}
-	hub.mu.RUnlock()
+
+	hub.onReconnect = append(hub.onReconnect, f)
+	return nil
 }
 
-func (reg *eventsRegistry) emitChange(a *App, c ChangeLog) {
-	reg.mu.RLock()
-	for _, h := range reg.hubs {
-		h.emitChange(a, c)
-
-	}
-	reg.mu.RUnlock()
-}
-
-func (hub *AppEvents) OnChange(f func(a *App, c ChangeLog)) {
+func (hub *Events) OnChange(f ChangeHandler) {
 	hub.mu.Lock()
 	hub.onChange = append(hub.onChange, f)
 	hub.mu.Unlock()
 }
 
-func (hub *AppEvents) Close() error {
+func (hub *Events) Close() error {
 	hub.mu.Lock()
 	if hub.closed {
 		hub.mu.Unlock()
-		return errors.New("AppEvents: already closed")
+		return errors.New("Proxy: already closed")
 	}
 	hub.closed = true
 	reg := hub.reg
@@ -272,4 +229,161 @@ func (hub *AppEvents) Close() error {
 	reg.mu.Unlock()
 
 	return nil
+}
+
+type eventsStorage struct {
+	hubs map[int64]*Events
+	idSeq int64
+	priority Priority
+	mu sync.RWMutex
+}
+
+func (s *eventsStorage) iterEvents(h func(e *Events)) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, ev := range s.hubs {
+		h(ev)
+	}
+}
+
+func (s *eventsStorage) new() *Events {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.idSeq++
+	id := s.idSeq
+	ev := &Events{
+		id:           id,
+		closed:       false,
+		reg:          s,
+		mu:           sync.RWMutex{},
+	}
+	s.hubs[id] = ev
+	return ev
+}
+
+type sortablePET []*eventsStorage
+
+func (p *sortablePET) Swap(i, j int) {
+	(*p)[i], (*p)[j] = (*p)[j], (*p)[i]
+}
+
+func (p *sortablePET) Push(el interface{}) {
+	*p = append(*p, el.(*eventsStorage))
+}
+
+func (p *sortablePET) Pop() interface{} {
+	el := (*p)[p.Len()-1]
+	*p = (*p)[:p.Len()-1]
+	return el
+}
+
+func (p *sortablePET) Len() int {
+	return len(*p)
+}
+
+func (p *sortablePET) Less(i, j int) bool {
+	return (*p)[i].priority < (*p)[j].priority
+}
+
+type eventsRegistry struct {
+	tables []*eventsStorage
+	mu     sync.RWMutex
+}
+
+func (r *eventsRegistry) new(p Priority) *Events {
+	r.mu.Lock()
+	var sto *eventsStorage
+	for _, s := range r.tables {
+		if s.priority == p {
+			sto = s
+			break
+		}
+	}
+	if sto == nil {
+		sto = &eventsStorage{
+			hubs: map[int64]*Events{},
+			idSeq:    0,
+			priority: p,
+		}
+		heap.Push((*sortablePET)(&r.tables), sto)
+	}
+	r.mu.Unlock()
+	return sto.new()
+}
+
+func (r *eventsRegistry) emitReconnect(a *App, opts ConnectOptions, c Client) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitReconnect(wg, a, opts, c)
+		})
+		wg.Wait()
+	}
+}
+
+func (r *eventsRegistry) emitMessage(a *App, c Client, data []byte) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitMessage(wg, a, c, data)
+		})
+		wg.Wait()
+	}
+}
+
+func (r *eventsRegistry) emitConnect(a *App, opts ConnectOptions, c Client) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitConnect(wg, a, opts, c)
+		})
+		wg.Wait()
+	}
+}
+
+func (r *eventsRegistry) emitDisconnect(a *App, c Client) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitDisconnect(wg, a, c)
+		})
+		wg.Wait()
+	}
+}
+
+func (r *eventsRegistry) emitInactivate(a *App, c Client) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitInactivate(wg, a, c)
+		})
+		wg.Wait()
+	}
+}
+
+func (r *eventsRegistry) emitChange(a *App, c ChangeLog) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, t := range r.tables {
+		wg := &sync.WaitGroup{}
+		t.iterEvents(func(e *Events) {
+			e.emitChange(wg, a, c)
+		})
+		wg.Wait()
+	}
+}
+
+func newEventsRegistry() *eventsRegistry {
+	return &eventsRegistry{}
 }

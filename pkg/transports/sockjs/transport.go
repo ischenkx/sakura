@@ -1,16 +1,17 @@
 package sockjs
 
 import (
-	"github.com/RomanIschenko/notify/pubsub"
+	pubsub2 "github.com/RomanIschenko/notify/default/pubsub"
 	"github.com/igm/sockjs-go/v3/sockjs"
 )
 
 type Transport struct {
 	session sockjs.Session
-	client  pubsub.Client
+	client  pubsub2.Client
 }
 
 func (t *Transport) Write(d []byte) (int, error) {
+
 	return len(d), t.session.Send(string(d))
 }
 

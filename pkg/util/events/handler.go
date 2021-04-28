@@ -12,7 +12,7 @@ type handler struct {
 	clientIndex  int
 	dataIndex    int
 	emitterIndex int
-	data         interface{}
+	dataType	 reflect.Type
 	codec        Codec
 }
 
@@ -23,16 +23,15 @@ func (h *handler) call(app reflect.Value, emitter reflect.Value, client notify.C
 		argsUsed++
 		args[h.appIndex] = app
 	}
-
 	if h.clientIndex >= 0 {
 		argsUsed++
 		args[h.clientIndex] = reflect.ValueOf(client)
 	}
-
 	if h.dataIndex >= 0 {
 		argsUsed++
-		if err := h.codec.Unmarshal(data, h.data); err == nil {
-			args[h.dataIndex] = reflect.ValueOf(h.data).Elem()
+		parseDst := reflect.New(h.dataType).Interface()
+		if err := h.codec.Unmarshal(data, parseDst); err == nil {
+			args[h.dataIndex] = reflect.ValueOf(parseDst).Elem()
 		} else {
 			return
 		}
@@ -83,7 +82,7 @@ func newHandler(hnd interface{}, codec Codec) *handler {
 			}
 			h.emitterIndex = i
 		} else if h.dataIndex < 0 {
-			h.data = reflect.New(paramType).Interface()
+			h.dataType = paramType
 			h.dataIndex = i
 		} else {
 			panic("error in handler signature")

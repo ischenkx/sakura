@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"github.com/RomanIschenko/notify"
 	authmock "github.com/RomanIschenko/notify/auth/mock"
-	"github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/RomanIschenko/notify/pubsub"
 	"github.com/RomanIschenko/notify/internal/pubsub/changelog"
 	"github.com/RomanIschenko/notify/transports/websockets"
 	"github.com/gobwas/ws"
@@ -31,18 +31,18 @@ func main() {
 	// here we create a simple application
 	// to send notifications (chat messages)
 	app := notify.New(notify.Config{
-		ID:           "chat",
+		ID: "chat",
 		PubSubConfig: pubsub.Config{
-			ClientConfig:  pubsub.ClientConfig{
+			ClientConfig: pubsub.ClientConfig{
 				// Client's time to live
 				// after the specified duration client will become invalid
-				TTL:              time.Minute * 2,
+				TTL: time.Minute * 2,
 			},
 			CleanInterval: time.Minute,
 		},
 		ServerConfig: notify.ServerConfig{
 			// our websockets server
-			Server:          server,
+			Server: server,
 			// Server interface provides three channels to read from:
 			// Inactive - dropped connections
 			// Incoming - incoming data from clients
@@ -53,10 +53,10 @@ func main() {
 			Workers: 6,
 			// DataHandler is a function that handles incoming data
 			// func(*notify.App, notify.IncomingData)
-			DataHandler:     DataHandler,
+			DataHandler: DataHandler,
 		},
 		// Auth can be used for authentication of incoming connections
-		Auth:         authmock.New(),
+		Auth: authmock.New(),
 	})
 
 	// we want to subscribe client to the "chat" topic
@@ -64,12 +64,12 @@ func main() {
 	app.Events(context.Background()).
 		OnConnect(func(opts pubsub.ConnectOptions, client *pubsub.Client, log changelog.Log) {
 			app.Subscribe(pubsub.SubscribeOptions{
-				Topics:   []string{"chat"},
-				Clients:  []string{client.ID()},
+				Topics:  []string{"chat"},
+				Clients: []string{client.ID()},
 			})
 			app.Publish(pubsub.PublishOptions{
-				Topics:   []string{"chat"},
-				Payload:  []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
+				Topics:  []string{"chat"},
+				Payload: []byte(fmt.Sprintf("%s joined the chat!!!", client.ID())),
 			})
 		})
 
@@ -92,8 +92,8 @@ func main() {
 
 func DataHandler(app *notify.App, data notify.IncomingData) {
 	app.Publish(pubsub.PublishOptions{
-		Topics:   []string{"chat"},
-		Payload:  data.Payload,
+		Topics:  []string{"chat"},
+		Payload: data.Payload,
 	})
 }
 ```
