@@ -6,16 +6,20 @@ type TopicChangeLog interface {
 	UsersAdded() []string
 	ClientsDeleted() []string
 	UsersDeleted() []string
+	FailedClients() []string
+	FailedUsers() []string
 }
 
 type ChangeLog interface {
 	TopicsCreated() []string
-	TopicsDeleted()      []string
-	UsersCreated()       []string
-	UsersDeleted()       []string
-	ClientsCreated()     []string
-	ClientsDeleted()     []string
+	TopicsDeleted() []string
+	UsersCreated() []string
+	UsersDeleted() []string
+	ClientsCreated() []string
+	ClientsDeleted() []string
 	ClientsInactivated() []string
-	Topics()             []TopicChangeLog
-	Timestamp()          int64
+	NotFoundClients() []string
+	NotFoundUsers() []string
+	Topics() []TopicChangeLog
+	Timestamp() int64
 }

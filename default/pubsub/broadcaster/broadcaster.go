@@ -8,6 +8,7 @@ import (
 	"github.com/RomanIschenko/notify/default/pubsub/mutator"
 	"github.com/RomanIschenko/notify/pubsub/message"
 	"github.com/RomanIschenko/notify/pubsub/protocol"
+	"log"
 	"runtime"
 )
 
@@ -79,6 +80,7 @@ func (b *Broadcaster) Broadcast(sessions, users, topics []string, messages []mes
 	for _, id := range topics {
 		t, ok := b.topics.Get(id)
 		if !ok {
+			log.Println("failed to get topic!!!")
 			continue
 		}
 		toBeEnqueued := t.Push(messages, true)

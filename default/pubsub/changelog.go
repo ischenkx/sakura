@@ -5,16 +5,20 @@ import "github.com/RomanIschenko/notify/pubsub"
 type topicAlteration struct {
 	topicID                                                string
 	clientsAdded, usersAdded, clientsDeleted, usersDeleted []string
+	failedUsers                                            []string
+	failedClients                                          []string
 }
 
 func (alt *topicAlteration) TopicID() string {
 	return alt.topicID
 }
 
-func (alt *topicAlteration) ClientsAdded() []string{return alt.clientsAdded}
-func (alt *topicAlteration) UsersAdded() []string{return alt.usersAdded}
-func (alt *topicAlteration) ClientsDeleted() []string{return alt.clientsDeleted}
-func (alt *topicAlteration) UsersDeleted() []string{return alt.usersDeleted}
+func (alt *topicAlteration) ClientsAdded() []string   { return alt.clientsAdded }
+func (alt *topicAlteration) UsersAdded() []string     { return alt.usersAdded }
+func (alt *topicAlteration) ClientsDeleted() []string { return alt.clientsDeleted }
+func (alt *topicAlteration) UsersDeleted() []string   { return alt.usersDeleted }
+func (alt *topicAlteration) FailedClients() []string  { return alt.failedClients }
+func (alt *topicAlteration) FailedUsers() []string    { return alt.failedUsers }
 
 func newTopicAlteration(t string) *topicAlteration {
 	return &topicAlteration{
@@ -36,7 +40,7 @@ func (p *topicAggregator) checkLast(t string) bool {
 
 func (p *topicAggregator) findOrCreate(t string) *topicAlteration {
 	if p.checkLast(t) {
-		d := p.alterations[len(p.alterations) - 1].(*topicAlteration)
+		d := p.alterations[len(p.alterations)-1].(*topicAlteration)
 		return d
 	}
 	for i := 0; i < len(p.alterations); i++ {
@@ -46,7 +50,7 @@ func (p *topicAggregator) findOrCreate(t string) *topicAlteration {
 		}
 	}
 	p.alterations = append(p.alterations, newTopicAlteration(t))
-	return p.alterations[len(p.alterations) - 1].(*topicAlteration)
+	return p.alterations[len(p.alterations)-1].(*topicAlteration)
 }
 
 func (p *topicAggregator) addUser(t, user string) {
@@ -69,6 +73,16 @@ func (p *topicAggregator) deleteClient(t, client string) {
 	alt.clientsDeleted = append(alt.clientsDeleted, client)
 }
 
+func (p *topicAggregator) addFailedClient(t, c string) {
+	alt := p.findOrCreate(t)
+	alt.failedClients = append(alt.failedClients, c)
+}
+
+func (p *topicAggregator) addFailedUser(t, u string) {
+	alt := p.findOrCreate(t)
+	alt.failedUsers = append(alt.failedUsers, u)
+}
+
 type ChangeLog struct {
 	topicCreated       []string
 	topicsDeleted      []string
@@ -77,8 +91,11 @@ type ChangeLog struct {
 	clientsCreated     []string
 	clientsDeleted     []string
 	clientsInactivated []string
-	topics             topicAggregator
-	timestamp          int64
+	notFoundClients    []string
+	notFoundUsers      []string
+
+	topics    topicAggregator
+	timestamp int64
 }
 
 func (c *ChangeLog) addCreatedTopic(id string) {
@@ -109,15 +126,37 @@ func (c *ChangeLog) addInactivatedClient(id string) {
 	c.clientsInactivated = append(c.clientsInactivated, id)
 }
 
-func (c *ChangeLog) TopicsCreated() []string {return c.topicCreated}
-func (c *ChangeLog) TopicsDeleted()      []string {return c.topicsDeleted}
-func (c *ChangeLog) UsersCreated()       []string {return c.usersCreated}
-func (c *ChangeLog) UsersDeleted()       []string {return c.usersDeleted}
-func (c *ChangeLog) ClientsCreated()     []string {return c.clientsCreated}
-func (c *ChangeLog) ClientsDeleted()     []string {return c.clientsDeleted}
-func (c *ChangeLog) ClientsInactivated() []string {return c.clientsInactivated}
-func (c *ChangeLog) Topics()             []pubsub.TopicChangeLog {return c.topics.alterations}
-func (c *ChangeLog) Timestamp()          int64 {return c.timestamp}
+func (c *ChangeLog) addNotFoundUser(id string) {
+	for _, uid := range c.notFoundUsers {
+		if uid == id {
+			return
+		}
+	}
+	c.notFoundUsers = append(c.notFoundUsers, id)
+}
+
+func (c *ChangeLog) addNotFoundClient(id string) {
+
+	for _, cid := range c.notFoundClients {
+		if cid == id {
+			return
+		}
+	}
+
+	c.notFoundClients = append(c.notFoundClients, id)
+}
+
+func (c *ChangeLog) TopicsCreated() []string         { return c.topicCreated }
+func (c *ChangeLog) TopicsDeleted() []string         { return c.topicsDeleted }
+func (c *ChangeLog) UsersCreated() []string          { return c.usersCreated }
+func (c *ChangeLog) UsersDeleted() []string          { return c.usersDeleted }
+func (c *ChangeLog) ClientsCreated() []string        { return c.clientsCreated }
+func (c *ChangeLog) ClientsDeleted() []string        { return c.clientsDeleted }
+func (c *ChangeLog) ClientsInactivated() []string    { return c.clientsInactivated }
+func (c *ChangeLog) NotFoundClients() []string       { return c.notFoundClients }
+func (c *ChangeLog) NotFoundUsers() []string         { return c.notFoundUsers }
+func (c *ChangeLog) Topics() []pubsub.TopicChangeLog { return c.topics.alterations }
+func (c *ChangeLog) Timestamp() int64                { return c.timestamp }
 
 func newChangeLog(ts int64) *ChangeLog {
 	return &ChangeLog{

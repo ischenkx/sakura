@@ -1,10 +1,14 @@
 package pubsub
 
-import "github.com/RomanIschenko/notify/default/pubsub/subscription"
+import (
+	"github.com/RomanIschenko/notify/default/pubsub/subscription"
+	"sync"
+)
 
 type user struct {
 	clients       map[string]*client
 	subscriptions subscription.List
+	data          *sync.Map
 }
 
 func (u *user) Add(c *client) {
@@ -43,6 +47,7 @@ func (u *user) Unsubscribe(id string, ts int64, f func(*client)) error {
 
 func newUser() *user {
 	return &user{
+		data:          &sync.Map{},
 		clients:       map[string]*client{},
 		subscriptions: subscription.NewList(),
 	}

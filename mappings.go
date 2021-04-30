@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	PublishOptions     = pubsub.PublishOptions
+	PublishOptions     		   = pubsub.PublishOptions
 	SubscribeOptions   = pubsub.SubscribeOptions
 	UnsubscribeOptions = pubsub.UnsubscribeOptions
 	ConnectOptions     = pubsub.ConnectOptions

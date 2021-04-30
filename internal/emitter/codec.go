@@ -1,4 +1,4 @@
-package events
+package emitter
 
 type Codec interface {
 	Marshal(interface{}) ([]byte, error)

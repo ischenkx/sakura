@@ -48,18 +48,18 @@ func (app *App) ID() string {
 	return app.id
 }
 
-func (app *App) Subscribe(opts SubscribeOptions) ChangeLog {
+func (app *App) Subscribe(opts SubscribeOptions) SubscriptionAlterationResult {
 	app.proxy.emitSubscribe(app, &opts)
 	changelog := app.pubsub.Subscribe(opts)
 	app.events.emitChange(app, changelog)
-	return changelog
+	return SubscriptionAlterationResult{changelog}
 }
 
-func (app *App) Unsubscribe(opts UnsubscribeOptions) ChangeLog {
+func (app *App) Unsubscribe(opts UnsubscribeOptions) SubscriptionAlterationResult {
 	app.proxy.emitUnsubscribe(app, &opts)
 	changelog := app.pubsub.Unsubscribe(opts)
 	app.events.emitChange(app, changelog)
-	return changelog
+	return SubscriptionAlterationResult{changelog}
 }
 
 func (app *App) Publish(opts PublishOptions) {
@@ -74,6 +74,19 @@ func (app *App) Disconnect(opts DisconnectOptions) {
 	for _, c := range clients {
 		app.events.emitDisconnect(app, c)
 	}
+}
+
+func (app *App) inactivate(id string) {
+	client, changelog, err := app.pubsub.Inactivate(id, time.Now().UnixNano())
+	if err != nil {
+		return
+	}
+	app.events.emitChange(app, changelog)
+	app.events.emitInactivate(app, client)
+}
+
+func (app *App) handleMessage(data []byte, client Client) {
+
 }
 
 func (app *App) startCleaner(ctx context.Context) {
@@ -102,7 +115,7 @@ func (app *App) Servable() Servable {
 	return (*servable)(app)
 }
 
-func (app *App) Events(p Priority) *Events {
+func (app *App) Events(p Priority) *Hooks {
 	return app.events.new(p)
 }
 

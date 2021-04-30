@@ -1,7 +1,5 @@
 package notify
 
-import "time"
-
 type servable App
 
 func (s *servable) Connect(auth string, options ConnectOptions) (Client, error) {
@@ -9,16 +7,12 @@ func (s *servable) Connect(auth string, options ConnectOptions) (Client, error) 
 }
 
 func (s *servable) Inactivate(id string) {
-	client, changelog, err := s.pubsub.Inactivate(id, time.Now().UnixNano())
-	if err != nil {
-		return
-	}
-	s.events.emitInactivate((*App)(s), client)
-	s.events.emitChange((*App)(s), changelog)
+	(*App)(s).inactivate(id)
 }
 
 func (s *servable) HandleMessage(client Client, data []byte) {
-	s.events.emitMessage((*App)(s), client, data)
+
+	(*App)(s).handleMessage(data, client)
 }
 
 type Servable interface {

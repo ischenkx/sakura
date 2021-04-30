@@ -58,11 +58,11 @@ func (p *PubSub) Connect(opts pubsub.ConnectOptions) (pubsub.Client, pubsub.Chan
 	if clientExists {
 		isReconnected = true
 		if c.user != opts.UserID {
+			changelog.addNotFoundUser(c.user)
 			p.mu.Unlock()
 			return nil, changelog, isReconnected, errors.New("failed to connect: user id mismatch")
 		}
 		delete(p.inactiveClients, c.id)
-		log.Println("deleted from inactive clients ", c.id)
 	} else {
 		c = newClient(opts.ClientID, opts.UserID)
 		p.clients[c.id] = c
@@ -76,7 +76,7 @@ func (p *PubSub) Connect(opts pubsub.ConnectOptions) (pubsub.Client, pubsub.Chan
 				p.users[opts.UserID] = u
 				changelog.addCreatedUser(opts.UserID)
 			}
-
+			c.userData = u.data
 			u.Add(c)
 			mutator.AttachUser(c.id, opts.UserID)
 			for topicId, sub := range u.subscriptions.Map() {
@@ -112,6 +112,7 @@ func (p *PubSub) Inactivate(id string, ts int64) (pubsub.Client, pubsub.ChangeLo
 
 	c, ok := p.clients[id]
 	if !ok {
+		changelog.addNotFoundClient(c.ID())
 		return nil, changelog, errors.New("failed to inactivate: no client with such id")
 	}
 	p.inactiveClients[id] = ts
@@ -141,7 +142,7 @@ func (p *PubSub) Disconnect(opts pubsub.DisconnectOptions) ([]pubsub.Client, pub
 			clients = append(clients, c)
 			delete(p.clients, clientID)
 			delete(p.inactiveClients, clientID)
-			c.meta = nil
+			c.data = nil
 			if c.user != "" {
 				if u, userExists := p.users[c.user]; userExists {
 					u.Del(c.id)
@@ -169,13 +170,14 @@ func (p *PubSub) Disconnect(opts pubsub.DisconnectOptions) ([]pubsub.Client, pub
 			c, clientExists := p.clients[clientID]
 			delete(p.inactiveClients, clientID)
 			if !clientExists {
+				changelog.addNotFoundClient(clientID)
 				continue
 			}
 
 			changelog.addDeletedClient(clientID)
 			clients = append(clients, c)
 			delete(p.clients, clientID)
-			c.meta = nil
+			c.data = nil
 			if c.user != "" {
 				if u, userExists := p.users[c.user]; userExists {
 					u.Del(c.id)
@@ -201,6 +203,7 @@ func (p *PubSub) Disconnect(opts pubsub.DisconnectOptions) ([]pubsub.Client, pub
 			u, userExists := p.users[userID]
 
 			if !userExists {
+				changelog.addNotFoundUser(userID)
 				continue
 			}
 
@@ -214,7 +217,7 @@ func (p *PubSub) Disconnect(opts pubsub.DisconnectOptions) ([]pubsub.Client, pub
 				changelog.addDeletedClient(c.id)
 				clients = append(clients, c)
 				mutator.DeleteClient(c.id)
-				c.meta = nil
+				c.data = nil
 				for topicID := range c.subscriptions.Map() {
 					mutator.Unsubscribe(c.id, topicID, true)
 					if t, topicExists := p.topics[topicID]; topicExists {
@@ -247,6 +250,7 @@ func (p *PubSub) Subscribe(opts pubsub.SubscribeOptions) pubsub.ChangeLog {
 		for _, clientID := range opts.Clients {
 			c, clientExists := p.clients[clientID]
 			if !clientExists {
+				changelog.addNotFoundClient(clientID)
 				continue
 			}
 			if err := c.subscriptions.Add(topicID, opts.TimeStamp); err == nil {
@@ -254,12 +258,14 @@ func (p *PubSub) Subscribe(opts pubsub.SubscribeOptions) pubsub.ChangeLog {
 				changelog.topics.addClient(topicID, clientID)
 				mutator.Subscribe(c.id, topicID)
 			} else {
+				changelog.topics.addFailedClient(topicID, c.ID())
 				log.Println(err)
 			}
 		}
 		for _, userID := range opts.Users {
 			u, userExists := p.users[userID]
 			if !userExists {
+				changelog.addNotFoundUser(userID)
 				continue
 			}
 			err := u.Subscribe(topicID, opts.TimeStamp, func(c *client) {
@@ -269,6 +275,8 @@ func (p *PubSub) Subscribe(opts pubsub.SubscribeOptions) pubsub.ChangeLog {
 
 			if err == nil {
 				changelog.topics.addUser(topicID, userID)
+			} else {
+				changelog.topics.addFailedUser(topicID, userID)
 			}
 		}
 		if !topicExists && t.Len() > 0 {
@@ -294,12 +302,15 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 		for _, clientID := range opts.Clients {
 			c, ok := p.clients[clientID]
 			if !ok {
+				changelog.addNotFoundClient(clientID)
 				continue
 			}
 			for topicId, _ := range c.subscriptions.Map() {
 				if err := c.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
 					mutator.Unsubscribe(c.id, topicId, false)
 					changelog.topics.deleteClient(topicId, clientID)
+				} else {
+					changelog.topics.addFailedClient(topicId, clientID)
 				}
 
 				if t, topicExists := p.topics[topicId]; topicExists {
@@ -315,6 +326,7 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 		for _, userID := range opts.Users {
 			u, ok := p.users[userID]
 			if !ok {
+				changelog.addNotFoundUser(userID)
 				continue
 			}
 
@@ -332,6 +344,8 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 				})
 				if err == nil {
 					changelog.topics.deleteUser(topicId, userID)
+				} else {
+					changelog.topics.addFailedUser(topicId, userID)
 				}
 			}
 		}
@@ -341,7 +355,6 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 			if !topicExists {
 				continue
 			}
-
 			for id := range t.clients {
 				c, clientExists := p.clients[id]
 				if !clientExists {
@@ -377,17 +390,21 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 			for _, clientId := range opts.Clients {
 				c, clientExists := p.clients[clientId]
 				if !clientExists {
+					changelog.addNotFoundClient(clientId)
 					continue
 				}
 				if err := c.subscriptions.Delete(topicId, opts.TimeStamp); err == nil {
 					t.Del(c.id)
 					changelog.topics.deleteClient(topicId, c.id)
 					mutator.Unsubscribe(c.id, topicId, false)
+				} else {
+					changelog.topics.addFailedClient(topicId, clientId)
 				}
 			}
 			for _, userId := range opts.Users {
 				u, userExists := p.users[userId]
 				if !userExists {
+					changelog.addNotFoundUser(userId)
 					continue
 				}
 				err := u.Unsubscribe(topicId, opts.TimeStamp, func(c *client) {
@@ -397,6 +414,8 @@ func (p *PubSub) Unsubscribe(opts pubsub.UnsubscribeOptions) pubsub.ChangeLog {
 
 				if err == nil {
 					changelog.topics.deleteUser(topicId, userId)
+				} else {
+					changelog.topics.addFailedUser(topicId, userId)
 				}
 			}
 

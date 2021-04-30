@@ -1,4 +1,4 @@
-package events
+package emitter
 
 import (
 	"github.com/RomanIschenko/notify"
@@ -12,7 +12,7 @@ type handler struct {
 	clientIndex  int
 	dataIndex    int
 	emitterIndex int
-	dataType	 reflect.Type
+	dataType     reflect.Type
 	codec        Codec
 }
 

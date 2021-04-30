@@ -1,4 +1,4 @@
-package events
+package emitter
 
 type Event struct {
 	Name                   string

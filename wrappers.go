@@ -36,36 +36,33 @@ func (a ActionBuilder) WithTopics(topics ...string) ActionBuilder {
 	return a
 }
 
-func (a ActionBuilder) Subscribe() ActionBuilder {
-	a.app.Subscribe(SubscribeOptions{
+func (a ActionBuilder) Subscribe() SubscriptionAlterationResult {
+	return a.app.Subscribe(SubscribeOptions{
 		Clients:   a.clients,
 		Users:     a.users,
 		Topics:    a.topics,
 		TimeStamp: a.timeStamp,
 		Meta:      a.metaInfo,
 	})
-	return a
 }
 
-func (a ActionBuilder) Unsubscribe() ActionBuilder {
-	a.app.Unsubscribe(UnsubscribeOptions{
+func (a ActionBuilder) Unsubscribe() SubscriptionAlterationResult {
+	return a.app.Unsubscribe(UnsubscribeOptions{
 		Clients:   a.clients,
 		Users:     a.users,
 		Topics:    a.topics,
 		TimeStamp: a.timeStamp,
 		Meta:      a.metaInfo,
 	})
-	return a
 }
 
-func (a ActionBuilder) UnsubscribeAll() ActionBuilder {
-	a.app.Unsubscribe(UnsubscribeOptions{
+func (a ActionBuilder) UnsubscribeAll() SubscriptionAlterationResult {
+	return a.app.Unsubscribe(UnsubscribeOptions{
 		All:          true,
 		Topics:       a.topics,
 		TimeStamp:    a.timeStamp,
 		Meta:         a.metaInfo,
 	})
-	return a
 }
 
 func (a ActionBuilder) UnsubscribeAllFromTopic() ActionBuilder {
