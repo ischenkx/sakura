@@ -11,7 +11,6 @@ func (s *servable) Inactivate(id string) {
 }
 
 func (s *servable) HandleMessage(client Client, data []byte) {
-
 	(*App)(s).handleMessage(data, client)
 }
 

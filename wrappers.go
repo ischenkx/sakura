@@ -1,9 +1,5 @@
 package notify
 
-import (
-	"github.com/RomanIschenko/notify/pubsub/message"
-)
-
 type ActionBuilder struct {
 	app *App
 	clients, users, topics []string
@@ -75,13 +71,14 @@ func (a ActionBuilder) UnsubscribeAllFromTopic() ActionBuilder {
 	return a
 }
 
-func (a ActionBuilder) Publish(messages ...message.Message) ActionBuilder {
-	a.app.Publish(PublishOptions{
+func (a ActionBuilder) Emit(event string, data interface{}) ActionBuilder {
+	a.app.Emit(Event{
+		Name:      event,
+		Data:      data,
 		Clients:   a.clients,
 		Users:     a.users,
 		Topics:    a.topics,
-		Data:      messages,
-		TimeStamp: a.timeStamp,
+		Timestamp: a.timeStamp,
 		Meta:      a.metaInfo,
 	})
 	return a

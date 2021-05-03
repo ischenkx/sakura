@@ -41,7 +41,7 @@ func (s *Server) authenticate(t *Transport) (notify.Client, error) {
 	mes, err := t.readMessage()
 
 	if err != nil {
-		return nil, err
+		return notify.Client{}, err
 	}
 
 	switch mes.opCode {
@@ -55,11 +55,11 @@ func (s *Server) authenticate(t *Transport) (notify.Client, error) {
 	case pingCode:
 		err = s.sendPong(mes.data, t)
 		if err != nil {
-			return nil, err
+			return notify.Client{}, err
 		}
 		return s.authenticate(t)
 	default:
-		return nil, errors.New("failed to authenticate: received message with a wrong opcode")
+		return notify.Client{}, errors.New("failed to authenticate: received message with a wrong opcode")
 	}
 
 }

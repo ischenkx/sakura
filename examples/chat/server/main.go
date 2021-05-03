@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/RomanIschenko/notify"
-	emitter3 "github.com/RomanIschenko/notify/internal/emitter"
 	authmock "github.com/RomanIschenko/notify/pkg/auth/mock"
 	"github.com/RomanIschenko/notify/pkg/transports/websockets"
 	"github.com/gobwas/ws"
@@ -37,36 +36,65 @@ func main() {
 	})
 
 	// ok, now let's handle some events
-	ev := app.Events(notify.UserPriority)
-	defer ev.Close()
+	hooks := app.Hooks(notify.UserPriority)
+	defer hooks.Close()
 
-	ev.OnConnect(func(app *notify.App, opts notify.ConnectOptions, client notify.Client) {
-		log.Printf("connected id=[%s] user=[%s]\n", client.ID(), client.User())
+	hooks.OnConnect(func(app *notify.App, opts notify.ConnectOptions, client notify.Client) {
+		log.Println("connect")
 	})
 
-	ev.OnDisconnect(func(app *notify.App, client notify.Client) {
-		log.Printf("disconnected id=[%s] user=[%s]\n", client.ID(), client.User())
+	hooks.OnDisconnect(func(app *notify.App, client notify.Client) {
+		log.Println("disconnect")
 	})
 
-	ev.OnInactivate(func(app *notify.App, client notify.Client) {
-		log.Printf("inactivated id=[%s] user=[%s]\n", client.ID(), client.User())
+	hooks.OnInactivate(func(app *notify.App, client notify.Client) {
+		log.Println("inactivate")
 	})
 
-	ev.OnReconnect(func(app *notify.App, opts notify.ConnectOptions, client notify.Client) {
-		log.Printf("reconnected id=[%s] user=[%s]\n", client.ID(), client.User())
+	hooks.OnReconnect(func(app *notify.App, opts notify.ConnectOptions, client notify.Client) {
+		log.Println("reconnect")
 	})
 
-	// emitter is an event protocol
-	emitter := emitter3.NewEmitter(app, nil)
+	hooks.OnChange(func(app *notify.App, l notify.ChangeLog) {
+		log.Println("change")
+	})
 
-	emitter.On("chat.join", func(c notify.Client, emitter *emitter3.Emitter, app *notify.App, request ChatJoinRequest) {
+	hooks.OnEmit(func(app *notify.App, event notify.Event) {
+		log.Println("emit")
+	})
+
+	hooks.OnEvent(func(app *notify.App, client notify.Client, event notify.IncomingEvent) {
+		log.Println("event")
+	})
+
+	hooks.OnBeforeConnect(func(app *notify.App, options *notify.ConnectOptions) {
+		log.Println("before connect")
+	})
+
+	hooks.OnBeforeDisconnect(func(app *notify.App, options *notify.DisconnectOptions) {
+		log.Println("before disconnect")
+	})
+
+	hooks.OnBeforeEmit(func(app *notify.App, event *notify.Event) {
+		log.Println("before emit")
+	})
+
+	hooks.OnBeforeSubscribe(func(app *notify.App, options *notify.SubscribeOptions) {
+		log.Println("before subscribe")
+	})
+
+	hooks.OnBeforeUnsubscribe(func(app *notify.App, options *notify.UnsubscribeOptions) {
+		log.Println("before unsubscribe")
+	})
+
+	app.On("chat.join", func(c notify.Client, app *notify.App, request ChatJoinRequest) {
 		if previousChat, ok := c.Data().LoadAndDelete("current_chat"); ok {
 			app.Action().
 				WithClients(c.ID()).
 				WithTopics(previousChat.(string)).
 				Unsubscribe()
 
-			emitter.Emit(emitter3.Event{
+			app.Emit(notify.Event{
 				Name: "chat.message",
 				Topics: notify.IDs{previousChat.(string)},
 				Data: ChatMessage{
@@ -88,7 +116,7 @@ func main() {
 				name = n.(string)
 			}
 
-			emitter.Emit(emitter3.Event{
+			app.Emit(notify.Event{
 				Name:      "chat.message",
 				Data:      ChatMessage{
 					Code:    200,
@@ -102,7 +130,7 @@ func main() {
 		}
 	})
 
-	emitter.On("chat.leave", func(c notify.Client, emitter *emitter3.Emitter, app *notify.App) {
+	app.On("chat.leave", func(c notify.Client, app *notify.App) {
 		if chat, ok := c.Data().LoadAndDelete("current_chat"); ok {
 			res := app.Action().
 				WithClients(c.ID()).
@@ -110,7 +138,7 @@ func main() {
 				Unsubscribe()
 
 			if res.OK() {
-				emitter.Emit(emitter3.Event{
+				app.Emit(notify.Event{
 					Name: "chat.message",
 					Topics: notify.IDs{chat.(string)},
 					Data: ChatMessage{
@@ -122,9 +150,9 @@ func main() {
 		}
 	})
 
-	emitter.On("chat.message", func(client notify.Client, app *notify.App, emitter *emitter3.Emitter, message ChatMessage) {
+	app.On("chat.message", func(client notify.Client, app *notify.App, message ChatMessage) {
 		if message.Code != 100 {
-			emitter.Emit(emitter3.Event{
+			app.Emit(notify.Event{
 				Name:      "chat.error",
 				Data:      ChatMessage{
 					Code:    300,
@@ -142,7 +170,7 @@ func main() {
 			} else {
 				message.From = client.ID()
 			}
-			emitter.Emit(emitter3.Event{
+			app.Emit(notify.Event{
 				Name:      "chat.message",
 				Data:      message,
 				Topics:    notify.IDs{chat.(string)},
@@ -150,15 +178,22 @@ func main() {
 		}
 	})
 
-	emitter.On("user.set_name", func(c notify.Client, name string) {
+	app.On("user.set_name", func(c notify.Client, name string) {
 		c.Data().Store("name", name)
 	})
 
 	app.Start(context.Background())
 
 	server := websockets.NewServer(app.Servable(), ws.DefaultHTTPUpgrader)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		server.ServeHTTP(w, r)
 	})
+
 	http.ListenAndServe("localhost:3434", nil)
 }
+
+
+
+
+

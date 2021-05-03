@@ -55,6 +55,7 @@ func (p *PubSub) Connect(opts pubsub.ConnectOptions) (pubsub.Client, pubsub.Chan
 
 	p.mu.Lock()
 	c, clientExists := p.clients[opts.ClientID]
+
 	if clientExists {
 		isReconnected = true
 		if c.user != opts.UserID {
