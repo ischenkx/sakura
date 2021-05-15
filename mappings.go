@@ -1,20 +1,20 @@
 package notify
 
 import (
+	"github.com/RomanIschenko/notify/internal/emitter"
 	"github.com/RomanIschenko/notify/internal/events"
-	"github.com/RomanIschenko/notify/pubsub"
+	"github.com/RomanIschenko/notify/internal/pubsub"
 )
 
 type (
-	SubscribeOptions   = pubsub.SubscribeOptions
-	UnsubscribeOptions = pubsub.UnsubscribeOptions
-	ConnectOptions     = pubsub.ConnectOptions
-	DisconnectOptions  = pubsub.DisconnectOptions
-	ChangeLog          = pubsub.ChangeLog
-	IDs                = []string
-	Priority           = events.Priority
+	SubscribeClientOptions   = pubsub.SubscribeClientOptions
+	SubscribeUserOptions     = pubsub.SubscribeUserOptions
+	UnsubscribeClientOptions = pubsub.UnsubscribeClientOptions
+	UnsubscribeUserOptions   = pubsub.UnsubscribeUserOptions
+	ConnectOptions           = pubsub.ConnectOptions
+	DisconnectOptions        = pubsub.DisconnectOptions
+	ChangeLog                = *pubsub.ChangeLog
+	Priority                 = events.Priority
+	EventsCodec              = emitter.EventsCodec
+	IDs                      = []string
 )
-
-type Client struct {
-	pubsub.Client
-}

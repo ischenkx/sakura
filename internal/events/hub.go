@@ -16,7 +16,6 @@ type Hub struct {
 func (h *Hub) Emit(name string, args []interface{}) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-
 	if handlers, ok := h.handlers[name]; ok {
 		for _, hnd := range handlers {
 			hnd.Call(args)

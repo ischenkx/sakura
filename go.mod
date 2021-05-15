@@ -24,6 +24,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/sirupsen/logrus v1.7.0
+	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20201022231255-08b38378de70
 	golang.org/x/sys v0.0.0-20201022201747-fb209a7c41cd // indirect
 	google.golang.org/genproto v0.0.0-20201022181438-0ff5f38871d5 // indirect

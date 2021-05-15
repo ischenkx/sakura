@@ -13,6 +13,12 @@ import (
 
 var logger = logrus.WithField("source", "ws_logger")
 
+type Config struct {
+	AuthReadTimeout time.Duration
+	ReadTimeout time.Duration
+	Upgrader ws.HTTPUpgrader
+}
+
 // Server uses a custom protocol for websocket communication.
 //
 // Protocol:
@@ -33,20 +39,32 @@ var logger = logrus.WithField("source", "ws_logger")
 // 5. Server reads messages and handles ping requests
 type Server struct {
 	mu       sync.RWMutex
-	app      notify.Servable
-	upgrader ws.HTTPUpgrader
+	app      notify.Server
+	config Config
 }
 
-func (s *Server) authenticate(t *Transport) (notify.Client, error) {
+func (s *Server) authenticate(t *Transport) (string, error) {
+
+	deadline := time.Time{}
+
+	if s.config.AuthReadTimeout > 0 {
+		deadline = time.Now().Add(s.config.AuthReadTimeout)
+	}
+
+	if err := t.conn.SetReadDeadline(deadline); err != nil {
+		return "", err
+	}
+
 	mes, err := t.readMessage()
 
 	if err != nil {
-		return notify.Client{}, err
+		return "", err
 	}
 
 	switch mes.opCode {
 	case authReqCode:
 		authData := string(mes.data)
+		t.conn.SetReadDeadline(time.Time{})
 		return s.app.Connect(authData, notify.ConnectOptions{
 			Writer:    t,
 			TimeStamp: time.Now().UnixNano(),
@@ -55,23 +73,23 @@ func (s *Server) authenticate(t *Transport) (notify.Client, error) {
 	case pingCode:
 		err = s.sendPong(mes.data, t)
 		if err != nil {
-			return notify.Client{}, err
+			return "", err
 		}
 		return s.authenticate(t)
 	default:
-		return notify.Client{}, errors.New("failed to authenticate: received message with a wrong opcode")
+		return "", errors.New("failed to authenticate: received message with a wrong opcode")
 	}
 
 }
 
-func (s *Server) handleMessage(c notify.Client, t *Transport, m message) error {
+func (s *Server) handleMessage(id string, t *Transport, m message) error {
 	var err error
 
 	switch m.opCode {
 	case pingCode:
 		err = s.sendPong(m.data, t)
 	case messageCode:
-		s.app.HandleMessage(c, m.data)
+		s.app.HandleMessage(id, m.data)
 	default:
 		log.Println("unexpected code:", m.opCode)
 	}
@@ -89,7 +107,7 @@ func (s *Server) sendPong(data []byte, t *Transport) error {
 }
 
 func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
-	conn, _, _, err := s.upgrader.Upgrade(r, w)
+	conn, _, _, err := s.config.Upgrader.Upgrade(r, w)
 
 	if err != nil {
 		logger.Println("failed to upgrade connection")
@@ -98,7 +116,7 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 
 	t := newTransport(conn)
 
-	client, err := s.authenticate(t)
+	id, err := s.authenticate(t)
 
 	if err != nil {
 		log.Println(err)
@@ -116,23 +134,31 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 	})
 
 	if err != nil {
-		s.app.Inactivate(client.ID())
+		s.app.Inactivate(id)
 		t.Close()
 		return
 	}
 
 	for {
-		mes, err := t.readMessage()
+		deadline := time.Time{}
+		if s.config.ReadTimeout > 0 {
+			deadline = time.Now().Add(s.config.ReadTimeout)
+		}
+		err = t.conn.SetReadDeadline(deadline)
 		if err != nil {
-			s.app.Inactivate(client.ID())
+			s.app.Inactivate(id)
 			t.Close()
 			return
 		}
-
-		err = s.handleMessage(client, t, mes)
-
+		mes, err := t.readMessage()
 		if err != nil {
-			s.app.Inactivate(client.ID())
+			s.app.Inactivate(id)
+			t.Close()
+			return
+		}
+		err = s.handleMessage(id, t, mes)
+		if err != nil {
+			s.app.Inactivate(id)
 			t.Close()
 			return
 		}
@@ -143,9 +169,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.serveWS(r, w)
 }
 
-func NewServer(app notify.Servable, upgrader ws.HTTPUpgrader) *Server {
+func NewServer(app notify.Server, config Config) *Server {
 	s := &Server{}
 	s.app = app
-	s.upgrader = upgrader
+	s.config = config
 	return s
 }

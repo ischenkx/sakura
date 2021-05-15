@@ -3,7 +3,7 @@ package sockjs
 import (
 	"fmt"
 	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/pubsub"
+	pubsub2 "github.com/RomanIschenko/notify/internal/pubsub"
 	"github.com/igm/sockjs-go/v3/sockjs"
 	"github.com/sirupsen/logrus"
 	"net/http"
@@ -14,7 +14,7 @@ var logger = logrus.WithField("source", "sockjs_server")
 
 type Server struct {
 	mu      sync.RWMutex
-	app     notify.Servable
+	app     notify.Server
 	handler http.Handler
 }
 
@@ -29,7 +29,7 @@ func (s *Server) serveSockJS(session sockjs.Session) {
 		return
 	}
 
-	opts := pubsub.ConnectOptions{
+	opts := pubsub2.ConnectOptions{
 		ClientID:  "",
 		UserID:    "",
 		Writer:    nil,
@@ -59,7 +59,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handler.ServeHTTP(w, r)
 }
 
-func NewServer(app notify.Servable, prefix string, opts sockjs.Options) *Server {
+func NewServer(app notify.Server, prefix string, opts sockjs.Options) *Server {
 	s := &Server{}
 	s.app = app
 	s.handler = sockjs.NewHandler(prefix, opts, s.serveSockJS)

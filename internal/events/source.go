@@ -53,18 +53,8 @@ func (e *Source) Emit(name string, args ...interface{}) {
 	if len(e.hubs) == 0 {
 		return
 	}
-	prevPriority := e.hubs[0].p
-	wg := &sync.WaitGroup{}
 	for _, hub := range e.hubs {
-		if hub.p != prevPriority {
-			wg.Wait()
-		}
-		wg.Add(1)
-		go func(h *Hub) {
-			h.Emit(name, args)
-			wg.Done()
-		}(hub)
-		prevPriority = hub.p
+		hub.Emit(name, args)
 	}
 }
 

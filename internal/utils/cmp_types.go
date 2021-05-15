@@ -2,19 +2,20 @@ package utils
 
 import "reflect"
 
+var emptyInterface interface{}
+var emptyInterfaceType = reflect.ValueOf(&emptyInterface).Type()
+
 func CompareTypes(t1, t2 reflect.Type) bool {
-
-	if t1.Kind() == reflect.Interface {
-		if t2.Implements(t1) {
-			return true
-		}
-	}
-
-	if t2.Kind() == reflect.Interface {
-		if t1.Implements(t2) {
-			return true
-		}
-	}
-
 	return t1.String() == t2.String()
+}
+
+func IsInterface(t reflect.Type) bool {
+	return t.Kind() == reflect.Interface
+}
+
+func IsEmptyInterface(t reflect.Type) bool {
+	if !IsInterface(t) {
+		return false
+	}
+	return emptyInterfaceType.Implements(t)
 }
