@@ -237,12 +237,16 @@ func (p *Parser) collectHandlerInfo(path string, fileSet *token.FileSet, dc *doc
 
 		command.IterText(t.Doc, func(cmd command.Command, err error) {
 			if err != nil {
+				fmt.Println("error while parsing command")
+
 				errstack.Error(fmt.Sprintf("error while parsing command: %s\n\tat %s:%d", err, file.Name(), funcLine))
 				return
 			}
 			switch cmd.Command {
 			case "handler":
-				handlers = append(handlers, newHandler(p.Folder, path, t, cmd.Flags))
+				h := newHandler(p.Folder, path, t, cmd.Flags)
+				h.Init(fileSet, errstack)
+				handlers = append(handlers, h)
 			}
 		})
 	}

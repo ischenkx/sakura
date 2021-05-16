@@ -8,6 +8,7 @@ require (
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
+	github.com/fatih/color v1.11.0 // indirect
 	github.com/go-redis/redis/v8 v8.2.2
 	github.com/gobwas/httphead v0.0.0-20200921212729-da3d93bc3c58 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect

@@ -2,9 +2,7 @@ package gomod
 
 import (
 	"errors"
-	"fmt"
 	"golang.org/x/mod/modfile"
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,36 +25,14 @@ func GetDirectoryModuleName(dir string) (string, error) {
 	base := path.Base(dir)
 	parent := path.Dir(dir)
 	found := false
+	gomodFilePath := filepath.Join(dir, "go.mod")
+
 	gomodPath := ""
 
-	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			fmt.Println(err)
-			return err
-		}
-		info, err := d.Info()
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if info.Name() == "go.mod" {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			found = true
-
-			gomodPath = modfile.ModulePath(data)
-
-			return filepath.SkipDir
-		}
-		return nil
-	})
-
-	if err != nil {
-		return "", err
+	data, err := os.ReadFile(gomodFilePath)
+	if err == nil {
+		found = true
+		gomodPath = modfile.ModulePath(data)
 	}
 
 	if !found {

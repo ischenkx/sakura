@@ -73,8 +73,8 @@ func initHandlers(file *codegen2.File, imports *codegen2.ImportsDeclaration, hma
 
 	lines.Add("for _, h := range handlers {")
 	lines.Add(fmt.Sprintf("existingH, ok := %s.FindConsumer(%s.TypeOf(h.example))", ioc, reflectModName))
-	lines.Add(fmt.Sprintf("var handlerValue interface{}"))
-	lines.Add(fmt.Sprintf("if ok {handlerValue = existingH} else {handlerValue = h.example}"))
+	lines.Add(fmt.Sprintf("var handlerValue interface{} = h.example"))
+	lines.Add(fmt.Sprintf("if ok {handlerValue = existingH}"))
 	lines.Add(fmt.Sprintf("%s.AddHandler(handlerValue, h.prefix, h.eventsMapping)", hmapper))
 	lines.Add("}")
 	return lines
@@ -187,7 +187,6 @@ func Generate(info parser2.Info) (string, error) {
 	mainFunc.AddLines(initDI(&file, imports, "iocContainer", info.Dependencies))
 	mainFunc.AddLines(initHandlers(&file, imports, "handlersMapper", "iocContainer", info.Handlers))
 	mainFunc.AddLines(initStarters(imports, "app", info.Starters))
-
 	bts, err := format.Source([]byte(file.String()))
 
 	return string(bts), err

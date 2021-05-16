@@ -25,7 +25,7 @@ func main() {
 	hookContainer.Init([]runtime.Hook{{Event: "beforeConnect", Handler: hooks.OnBeforeConnect}, {Event: "reconnect", Handler: hooks.ReconnectHook}})
 	defer hookContainer.Close()
 	consumers := []consumer{
-		{value: &chat.Chat{}, mapping: map[string]string{"app": "", "service": ""}},
+		{value: &chat.Chat{}, mapping: map[string]string{"service": "", "app": ""}},
 		{value: &chat.Handler0{}, mapping: map[string]string{"app": ""}},
 		{value: &chat.Handler1{}, mapping: map[string]string{"app": ""}},
 		{value: &chat.Handler10{}, mapping: map[string]string{"app": ""}},
@@ -98,11 +98,9 @@ func main() {
 	}
 	for _, h := range handlers {
 		existingH, ok := iocContainer.FindConsumer(reflect.TypeOf(h.example))
-		var handlerValue interface{}
+		var handlerValue interface{} = h.example
 		if ok {
 			handlerValue = existingH
-		} else {
-			handlerValue = h.example
 		}
 		handlersMapper.AddHandler(handlerValue, h.prefix, h.eventsMapping)
 	}
@@ -116,9 +114,9 @@ type consumer struct {
 }
 
 type handler struct {
-	eventsMapping map[string]string
-
 	example interface{}
 
 	prefix string
+
+	eventsMapping map[string]string
 }

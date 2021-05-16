@@ -3,7 +3,9 @@ package parser
 import (
 	"fmt"
 	"github.com/RomanIschenko/notify/framework/command"
+	"github.com/RomanIschenko/notify/framework/common"
 	"go/doc"
+	"go/token"
 	"log"
 	"path/filepath"
 	"strings"
@@ -28,9 +30,16 @@ func (h *Handler) Log(prefix string) {
 	}
 }
 
-func (h *Handler) collectEventListenersInfo() {
+func (h *Handler) Init(fileset *token.FileSet, msgstack *common.MessageStack) {
 	for _, method := range h.typ.Methods {
 		command.IterText(method.Doc, func(cmd command.Command, err error) {
+			if err != nil {
+				file := fileset.File(method.Decl.Pos())
+				line := file.Line(method.Decl.Pos())
+				msgstack.Error(fmt.Sprintf("failed to parse command: %s\n\tat %s:%d", err, file.Name(), line))
+				return
+			}
+
 			switch cmd.Command {
 			case "on":
 				if ev, ok := cmd.FindFlag("event"); ok {
@@ -74,6 +83,5 @@ func newHandler(projectFolder, path string, typ *doc.Type, flags []command.Flag)
 			h.Prefix = flag.Value
 		}
 	}
-	h.collectEventListenersInfo()
 	return h
 }

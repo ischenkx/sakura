@@ -24,7 +24,10 @@ func (e *MessageStack) hasWarning(msg string) bool {
 }
 
 func (e *MessageStack) Error(msg string) {
-	if e.hasError(msg) {return}
+	if e.hasError(msg) {
+		fmt.Println("contains!!!")
+		return
+	}
 	e.errors = append(e.errors, msg)
 }
 
@@ -38,13 +41,10 @@ func (e *MessageStack) Ok() bool {
 	return len(e.errors) == 0
 }
 
-func (e *MessageStack) Log() {
-	fmt.Printf("Errors: %d\n", len(e.errors))
-	for _, s := range e.errors {
-		fmt.Println(s)
-	}
-	fmt.Printf("Warnings: %d\n", len(e.warnings))
-	for _, s := range e.warnings {
-		fmt.Println(s)
-	}
+func (e *MessageStack) Errors() []string {
+	return e.errors
+}
+
+func (e *MessageStack) Warnings() []string {
+	return e.warnings
 }

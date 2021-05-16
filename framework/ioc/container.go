@@ -57,24 +57,26 @@ func (c *Container) Add(entry Entry) error {
 	return nil
 }
 
-func (c *Container) tryFindProvidedConsumerDouble(con interface{}) interface{} {
+func (c *Container) tryFindProvidedConsumerDouble(con interface{}) (interface{}, bool) {
 	for _, entry := range c.entries {
 		if utils.CompareTypes(reflect.TypeOf(con), entry.typ) {
-			return entry.Value
+			return entry.Value, true
 		}
 	}
-	return con
+	return con, false
 }
 
 // InitConsumer accepts a pointer to a struct
 func (c *Container) InitConsumer(consumer interface{}, fields FieldMapping) {
 
-	consumer = c.tryFindProvidedConsumerDouble(consumer)
+	consumer, ok := c.tryFindProvidedConsumerDouble(consumer)
+	if !ok {
+		c.consumers = append(c.consumers, consumer)
+	}
 
 	t := reflect.TypeOf(consumer).Elem()
 	val := reflect.ValueOf(consumer).Elem()
 
-	c.consumers = append(c.consumers, consumer)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)

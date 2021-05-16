@@ -6,6 +6,18 @@ import (
 	"strings"
 )
 
+const nameCharset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func validName(n string) bool {
+	for _, c := range n {
+		if !strings.ContainsRune(nameCharset, c) {
+			return false
+		}
+	}
+
+	return true
+}
+
 type StructDeclaration struct {
 	Name string
 	Fields map[string]string
@@ -46,11 +58,12 @@ func (d *ImportsDeclaration) GetOrCreate(p string) string {
 	if !ok {
 		baseName := filepath.Base(p)
 
-		if baseName == "." {
+		if baseName == "." || !validName(baseName) {
 			baseName = randStr(12)
 		}
 		counter := 0
 		l = baseName
+
 		for {
 			if d.labelExists(l) {
 				counter += 1

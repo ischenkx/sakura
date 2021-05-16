@@ -188,6 +188,7 @@ func Parse(s string) (expr Command, err error) {
 		}
 	}
 	expr.Flags = flags
+
 	return expr, err
 }
 
