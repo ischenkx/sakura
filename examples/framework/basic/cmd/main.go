@@ -1,15 +1,15 @@
 package main
 
 import (
-	xhxKQFDaFpLS "github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/examples/framework/basic"
-	"github.com/RomanIschenko/notify/examples/framework/basic/services/data"
-	"github.com/RomanIschenko/notify/examples/framework/basic/services/other"
-	"github.com/RomanIschenko/notify/examples/framework/basic/startup"
-	jFbcXoEFfRsW "github.com/RomanIschenko/notify/framework/builder"
-	AjWwhTHctcuA "github.com/RomanIschenko/notify/framework/hmapper"
-	XVlBzgbaiCMR "github.com/RomanIschenko/notify/framework/ioc"
-	"github.com/RomanIschenko/notify/framework/runtime"
+	xhxKQFDaFpLS "github.com/ischenkx/notify"
+	"github.com/ischenkx/notify/examples/framework/basic"
+	"github.com/ischenkx/notify/examples/framework/basic/services/data"
+	"github.com/ischenkx/notify/examples/framework/basic/services/other"
+	"github.com/ischenkx/notify/examples/framework/basic/startup"
+	jFbcXoEFfRsW "github.com/ischenkx/notify/framework/builder"
+	AjWwhTHctcuA "github.com/ischenkx/notify/framework/hmapper"
+	XVlBzgbaiCMR "github.com/ischenkx/notify/framework/ioc"
+	"github.com/ischenkx/notify/framework/runtime"
 	wekrBEmfdzdc "reflect"
 )
 

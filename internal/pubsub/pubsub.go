@@ -3,12 +3,12 @@ package pubsub
 import (
 	"context"
 	"errors"
-	"github.com/RomanIschenko/notify/internal/pubsub/broadcaster"
-	"github.com/RomanIschenko/notify/internal/pubsub/internal/client"
-	"github.com/RomanIschenko/notify/internal/pubsub/internal/topic"
-	"github.com/RomanIschenko/notify/internal/pubsub/internal/user"
-	"github.com/RomanIschenko/notify/internal/pubsub/protocol"
-	"github.com/RomanIschenko/notify/pkg/default/batchproto"
+	"github.com/ischenkx/notify/internal/pubsub/broadcaster"
+	"github.com/ischenkx/notify/internal/pubsub/internal/client"
+	"github.com/ischenkx/notify/internal/pubsub/internal/topic"
+	"github.com/ischenkx/notify/internal/pubsub/internal/user"
+	"github.com/ischenkx/notify/internal/pubsub/protocol"
+	"github.com/ischenkx/notify/pkg/default/batchproto"
 	"sync"
 	"time"
 )

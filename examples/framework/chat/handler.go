@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 )
 
 // notify:handler
@@ -69,8 +69,6 @@ func (h *Handler3) HandleMessage(c notify.Client) {
 	c.Emit("message", "response from 3 handler")
 }
 
-
-
 // notify:handler prefix="handler4"
 type Handler4 struct {
 	// notify:inject
@@ -94,8 +92,6 @@ type Handler5 struct {
 func (h *Handler5) HandleMessage(c notify.Client) {
 	c.Emit("message", "response from 5 handler")
 }
-
-
 
 // notify:handler prefix="handler6"
 type Handler6 struct {

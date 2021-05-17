@@ -2,8 +2,8 @@ package sockjs
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify"
-	pubsub2 "github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/ischenkx/notify"
+	pubsub2 "github.com/ischenkx/notify/internal/pubsub"
 	"github.com/igm/sockjs-go/v3/sockjs"
 	"github.com/sirupsen/logrus"
 	"net/http"

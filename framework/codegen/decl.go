@@ -59,7 +59,7 @@ func (d *ImportsDeclaration) GetOrCreate(p string) string {
 		baseName := filepath.Base(p)
 
 		if baseName == "." || !validName(baseName) {
-			baseName = randStr(12)
+			baseName = RandStr(12)
 		}
 		counter := 0
 		l = baseName

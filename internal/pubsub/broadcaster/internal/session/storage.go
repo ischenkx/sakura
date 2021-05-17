@@ -1,7 +1,7 @@
 package session
 
 import (
-	util2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/util"
+	util2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/util"
 	"io"
 	"sync"
 )

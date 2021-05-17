@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/pkg/auth/jwt"
-	"github.com/RomanIschenko/notify/pkg/default/codec"
-	"github.com/RomanIschenko/notify/pkg/transports/websockets"
+	"github.com/ischenkx/notify"
+	"github.com/ischenkx/notify/pkg/auth/jwt"
+	"github.com/ischenkx/notify/pkg/default/codec"
+	"github.com/ischenkx/notify/pkg/transports/websockets"
 	"github.com/gobwas/ws"
 	"log"
 	"net/http"

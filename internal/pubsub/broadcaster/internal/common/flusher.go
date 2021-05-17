@@ -1,7 +1,7 @@
 package common
 
 import (
-	protocol2 "github.com/RomanIschenko/notify/internal/pubsub/protocol"
+	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
 )
 
 type Flusher interface {

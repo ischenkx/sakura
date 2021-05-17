@@ -1,7 +1,7 @@
 package emitter
 
 import (
-	"github.com/RomanIschenko/notify/internal/utils"
+	"github.com/ischenkx/notify/internal/utils"
 	"reflect"
 )
 

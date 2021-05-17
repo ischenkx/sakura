@@ -1,8 +1,8 @@
 package batchproto
 
 import (
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
-	protocol2 "github.com/RomanIschenko/notify/internal/pubsub/protocol"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
 )
 
 type Protocol struct {

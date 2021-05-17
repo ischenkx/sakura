@@ -1,8 +1,8 @@
 package history
 
 import (
-	common2 "github.com/RomanIschenko/notify/internal/pubsub/common"
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
+	common2 "github.com/ischenkx/notify/internal/pubsub/common"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
 	"sync"
 )
 

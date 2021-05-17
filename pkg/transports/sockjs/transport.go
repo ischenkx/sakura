@@ -1,7 +1,7 @@
 package sockjs
 
 import (
-	pubsub2 "github.com/RomanIschenko/notify/default/pubsub"
+	pubsub2 "github.com/ischenkx/notify/default/pubsub"
 	"github.com/igm/sockjs-go/v3/sockjs"
 )
 

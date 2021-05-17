@@ -1,7 +1,7 @@
 package broadcaster
 
 import (
-	mutator2 "github.com/RomanIschenko/notify/internal/pubsub/mutator"
+	mutator2 "github.com/ischenkx/notify/internal/pubsub/mutator"
 	"sync"
 )
 

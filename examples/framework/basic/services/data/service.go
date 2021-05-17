@@ -1,7 +1,7 @@
 package data
 
 import (
-	other2 "github.com/RomanIschenko/notify/examples/framework/basic/services/other"
+	other2 "github.com/ischenkx/notify/examples/framework/basic/services/other"
 )
 
 type Service struct {

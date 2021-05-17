@@ -1,7 +1,7 @@
 package pubsub
 
 import (
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
 	"io"
 	"time"
 )

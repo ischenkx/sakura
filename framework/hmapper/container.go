@@ -2,11 +2,11 @@ package hmapper
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 	"reflect"
 )
 
-const ImportPath = "github.com/RomanIschenko/notify/framework/hmapper"
+const ImportPath = "github.com/ischenkx/notify/framework/hmapper"
 
 type Container struct {
 	app *notify.App
@@ -24,11 +24,9 @@ func (c *Container) AddHandler(d interface{}, prefix string, m map[string]string
 			if prefix != "" {
 				absEvent = fmt.Sprintf("%s.%s", prefix, ev)
 			}
-
-			fmt.Println("Handling", absEvent)
 			c.app.On(absEvent, k.Interface())
 		} else {
-			fmt.Println("invalid", k, method, d)
+			fmt.Println("invalid handler", k, method, d)
 		}
 	}
 }

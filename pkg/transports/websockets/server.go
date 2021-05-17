@@ -2,7 +2,7 @@ package websockets
 
 import (
 	"errors"
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 	"github.com/gobwas/ws"
 	"github.com/sirupsen/logrus"
 	"log"

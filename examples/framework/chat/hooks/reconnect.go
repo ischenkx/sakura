@@ -2,7 +2,7 @@ package hooks
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 )
 
 // notify:hook name="reconnect"

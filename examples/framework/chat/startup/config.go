@@ -1,18 +1,15 @@
 package startup
 
 import (
-	"github.com/RomanIschenko/notify"
-	chat2 "github.com/RomanIschenko/notify/examples/framework/chat"
-	"github.com/RomanIschenko/notify/framework/builder"
-	authmock "github.com/RomanIschenko/notify/pkg/auth/mock"
+	chat2 "github.com/ischenkx/notify/examples/framework/chat"
+	"github.com/ischenkx/notify/framework/builder"
+	"github.com/ischenkx/notify/framework/ioc"
+	authmock "github.com/ischenkx/notify/pkg/auth/mock"
 )
 
-// notify:config
+// notify:configure
 func Configure(builder *builder.Builder) {
-	builder.SetAppConfig(notify.Config{
-		ID:   "my-app",
-		Auth: authmock.New(),
-	})
-	builder.Inject(&chat2.Service{Name: "my-service"})
+	builder.AppConfig().Auth = authmock.New()
+	builder.IocContainer().AddEntry(ioc.NewEntry(&chat2.Service{Name: "my-service"}, ""))
 }
 

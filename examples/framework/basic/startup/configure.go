@@ -1,11 +1,11 @@
 package startup
 
 import (
-	"github.com/RomanIschenko/notify"
-	data2 "github.com/RomanIschenko/notify/examples/framework/basic/services/data"
-	other2 "github.com/RomanIschenko/notify/examples/framework/basic/services/other"
-	"github.com/RomanIschenko/notify/framework/builder"
-	authmock "github.com/RomanIschenko/notify/pkg/auth/mock"
+	"github.com/ischenkx/notify"
+	data2 "github.com/ischenkx/notify/examples/framework/basic/services/data"
+	other2 "github.com/ischenkx/notify/examples/framework/basic/services/other"
+	"github.com/ischenkx/notify/framework/builder"
+	authmock "github.com/ischenkx/notify/pkg/auth/mock"
 )
 
 // notify:config

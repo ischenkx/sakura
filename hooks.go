@@ -1,6 +1,6 @@
 package notify
 
-import "github.com/RomanIschenko/notify/internal/events"
+import "github.com/ischenkx/notify/internal/events"
 
 type IncomingEvent struct {
 	Name string

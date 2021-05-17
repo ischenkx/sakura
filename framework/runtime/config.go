@@ -1,12 +1,12 @@
 package runtime
 
 import (
-	"github.com/RomanIschenko/notify/framework/builder"
-	"github.com/RomanIschenko/notify/internal/utils"
+	"github.com/ischenkx/notify/framework/builder"
+	"github.com/ischenkx/notify/internal/utils"
 	"reflect"
 )
 
-const ImportPath = "github.com/RomanIschenko/notify/framework/runtime"
+const ImportPath = "github.com/ischenkx/notify/framework/runtime"
 
 func Configure(b *builder.Builder, fns ...interface{}) {
 	for _, f := range fns {

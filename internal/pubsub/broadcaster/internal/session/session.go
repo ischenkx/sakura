@@ -1,10 +1,10 @@
 package session
 
 import (
-	history2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/history"
-	common2 "github.com/RomanIschenko/notify/internal/pubsub/common"
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
-	protocol2 "github.com/RomanIschenko/notify/internal/pubsub/protocol"
+	history2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/history"
+	common2 "github.com/ischenkx/notify/internal/pubsub/common"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
 	"io"
 	"sync"
 )

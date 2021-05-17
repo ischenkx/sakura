@@ -2,44 +2,54 @@ package ioc
 
 import (
 	"errors"
-	"github.com/RomanIschenko/notify/internal/utils"
+	"github.com/ischenkx/notify/internal/utils"
 	"log"
 	"reflect"
 	"unsafe"
 )
 
-const ImportPath = "github.com/RomanIschenko/notify/framework/ioc"
+const ImportPath = "github.com/ischenkx/notify/framework/ioc"
 
-type FieldMapping map[string]string
 
-type Entry struct {
-	Label string
-	Value interface{}
-	typ reflect.Type
-}
-
+// Container is not thread safe
 type Container struct {
 	entries []Entry
-	consumers []interface{}
+	consumers []Consumer
 }
 
-func (c *Container) findByType(t reflect.Type, label string) (Entry, bool) {
+func (c *Container) ConsumersRange(f func(Consumer)) {
+	if f == nil {return}
+	for _, consumer := range c.consumers {
+		f(consumer)
+	}
+}
+
+func (c *Container) EntriesRange(f func(Entry)) {
+	if f == nil {return}
 	for _, entry := range c.entries {
-		if utils.CompareTypes(t, entry.typ) && (label == "" || entry.Label == label) {
-			return entry, true
+		f(entry)
+	}
+}
+
+func (c *Container) FindEntry(opts ...interface{}) (Entry, bool) {
+	var label string
+	var typ reflect.Type
+
+	for _, opt := range opts {
+		switch val := opt.(type) {
+		case LabelOption:
+			label = val.data
+		case TypeOption:
+			typ = val.typ
 		}
+	}
 
-		interfaceRelation := false
+	if typ == nil && label == "" {
+		return Entry{}, false
+	}
 
-		if entry.typ.Kind() == reflect.Interface {
-			interfaceRelation = interfaceRelation||t.Implements(entry.typ)
-		}
-
-		if t.Kind() == reflect.Interface {
-			interfaceRelation = interfaceRelation||entry.typ.Implements(t)
-		}
-
-		if entry.Label != "" && entry.Label == label && interfaceRelation {
+	for _, entry := range c.entries {
+		if (entry.Label == label || label == "") && (matchTypes(typ, entry.typ) || typ == nil) {
 			return entry, true
 		}
 	}
@@ -47,36 +57,43 @@ func (c *Container) findByType(t reflect.Type, label string) (Entry, bool) {
 	return Entry{}, false
 }
 
-func (c *Container) Add(entry Entry) error {
-	if _, ok := c.findByType(entry.typ, entry.Label); ok {
+func (c *Container) AddEntry(entry Entry) error {
+	if _, ok := c.FindEntry(WithLabel(entry.Label), WithType(entry.typ)); ok {
 		return errors.New("already exists")
 	}
 
-	c.entries = append(c.entries, entry)
+	if con, ok := c.FindConsumer(entry.typ); ok {
+		entry.Value = con
+	}
 
+	c.entries = append(c.entries, entry)
+	c.initializeConsumers()
 	return nil
 }
 
-func (c *Container) tryFindProvidedConsumerDouble(con interface{}) (interface{}, bool) {
-	for _, entry := range c.entries {
-		if utils.CompareTypes(reflect.TypeOf(con), entry.typ) {
-			return entry.Value, true
+// AddConsumer returns actual value of a consumer
+func (c *Container) AddConsumer(con Consumer) (interface{}, error) {
+	if con.Object == nil {
+		return nil, errors.New("consumer object can not be nil")
+	}
+	for _, consumer := range c.consumers {
+		if consumer.Object == con.Object {
+			return nil, errors.New("such consumer already exists")
 		}
 	}
-	return con, false
+	if e, ok := c.FindEntry(WithType(reflect.TypeOf(con.Object))); ok {
+		con.Object = e.Value
+	}
+	c.consumers = append(c.consumers, con)
+	c.initializeConsumer(&c.consumers[len(c.consumers)-1])
+	return con.Object, nil
 }
 
-// InitConsumer accepts a pointer to a struct
-func (c *Container) InitConsumer(consumer interface{}, fields FieldMapping) {
-
-	consumer, ok := c.tryFindProvidedConsumerDouble(consumer)
-	if !ok {
-		c.consumers = append(c.consumers, consumer)
-	}
-
+func (c *Container) initializeConsumer(con *Consumer) {
+	consumer := con.Object
+	fields := con.DependencyMapping
 	t := reflect.TypeOf(consumer).Elem()
 	val := reflect.ValueOf(consumer).Elem()
-
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -84,15 +101,20 @@ func (c *Container) InitConsumer(consumer interface{}, fields FieldMapping) {
 		if !ok {
 			continue
 		}
-		e, ok := c.findByType(field.Type, lab)
+		e, ok := c.FindEntry(WithType(field.Type), lab)
 		if !ok {
 			log.Println("failed to find by label and type:", lab, field.Name)
 			continue
 		}
-
 		reflect.NewAt(field.Type, unsafe.Pointer(val.Field(i).UnsafeAddr())).
 			Elem().
 			Set(reflect.ValueOf(e.Value))
+	}
+}
+
+func (c *Container) initializeConsumers() {
+	for i := range c.consumers {
+		c.initializeConsumer(&c.consumers[i])
 	}
 }
 
@@ -102,7 +124,6 @@ func (c *Container) FindConsumer(p reflect.Type) (interface{}, bool) {
 			return consumer, true
 		}
 	}
-
 	return nil, false
 }
 

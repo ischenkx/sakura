@@ -2,9 +2,9 @@ package basic
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify"
-	data2 "github.com/RomanIschenko/notify/examples/framework/basic/services/data"
-	other2 "github.com/RomanIschenko/notify/examples/framework/basic/services/other"
+	"github.com/ischenkx/notify"
+	data2 "github.com/ischenkx/notify/examples/framework/basic/services/data"
+	other2 "github.com/ischenkx/notify/examples/framework/basic/services/other"
 )
 
 // notify:handler

@@ -1,9 +1,9 @@
 package notify
 
 import (
-	"github.com/RomanIschenko/notify/internal/emitter"
-	"github.com/RomanIschenko/notify/internal/events"
-	"github.com/RomanIschenko/notify/internal/pubsub"
+	"github.com/ischenkx/notify/internal/emitter"
+	"github.com/ischenkx/notify/internal/events"
+	"github.com/ischenkx/notify/internal/pubsub"
 )
 
 type (

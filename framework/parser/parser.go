@@ -2,14 +2,16 @@ package parser
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify/framework/command"
-	"github.com/RomanIschenko/notify/framework/common"
+	"github.com/ischenkx/notify"
+	"github.com/ischenkx/notify/framework/command"
+	"github.com/ischenkx/notify/framework/common"
 	"go/ast"
 	"go/doc"
 	"go/parser"
 	"go/token"
 	"io/fs"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -20,12 +22,12 @@ type Parser struct {
 func (p *Parser) CollectInfo() (Info, common.MessageStack) {
 	var (
 		info     Info
-		errstack common.MessageStack
+		msgstack common.MessageStack
 	)
 
 	err := filepath.WalkDir(p.Folder, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
-			errstack.Error("error while walking:"+err.Error())
+			msgstack.Error("error while walking:"+err.Error())
 			return nil
 		}
 		if !entry.IsDir() {
@@ -35,7 +37,7 @@ func (p *Parser) CollectInfo() (Info, common.MessageStack) {
 		pkgs, err := parser.ParseDir(fileSet, path, nil, parser.ParseComments)
 
 		if err != nil {
-			errstack.Error(fmt.Sprintf("error while parsing directory (%s): %s", path, err))
+			msgstack.Error(fmt.Sprintf("error while parsing directory (%s): %s", path, err))
 			return nil
 		}
 
@@ -43,21 +45,22 @@ func (p *Parser) CollectInfo() (Info, common.MessageStack) {
 
 			dc := doc.New(pkg, "", doc.AllDecls|doc.PreserveAST)
 
-			info.Configurators = append(info.Configurators, p.collectConfigurators(path, fileSet, dc, &errstack)...)
-			info.Starters = append(info.Starters, p.collectStarters(path, fileSet, dc, &errstack)...)
-			info.Handlers = append(info.Handlers, p.collectHandlerInfo(path, fileSet, dc, &errstack)...)
-			info.Dependencies = append(info.Dependencies, p.collectDependencies(path, fileSet, dc, &errstack)...)
-			info.Hooks = append(info.Hooks, p.collectHooks(path, fileSet, dc, &errstack)...)
+			info.Configurators = append(info.Configurators, p.collectConfigurators(path, fileSet, dc, &msgstack)...)
+			info.Starters = append(info.Starters, p.collectStarters(path, fileSet, dc, &msgstack)...)
+			info.Handlers = append(info.Handlers, p.collectHandlerInfo(path, fileSet, dc, &msgstack)...)
+			info.Dependencies = append(info.Dependencies, p.collectDependencies(path, fileSet, dc, &msgstack)...)
+			info.Hooks = append(info.Hooks, p.collectHooks(path, fileSet, dc, &msgstack)...)
+			info.Initializers = append(info.Initializers, p.collectInitializers(path, fileSet, dc, &msgstack)...)
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		errstack.Error(fmt.Sprintf("error while walking directory (%s): %s", p.Folder, err))
+		msgstack.Error(fmt.Sprintf("error while walking directory (%s): %s", p.Folder, err))
 	}
 
-	return info, errstack
+	return info, msgstack
 }
 
 func (p *Parser) collectHooks(path string, fileSet *token.FileSet, dc *doc.Package, errstack *common.MessageStack) []Hook {
@@ -76,6 +79,13 @@ func (p *Parser) collectHooks(path string, fileSet *token.FileSet, dc *doc.Packa
 
 			switch cmd.Command {
 			case "hook":
+
+				var hook Hook
+
+				hook.Path = path
+				hook.FuncName = t.Name
+				hook.Priority = notify.UserPriority
+
 				name, ok := cmd.FindFlag("name")
 
 				if !ok {
@@ -85,13 +95,28 @@ func (p *Parser) collectHooks(path string, fileSet *token.FileSet, dc *doc.Packa
 					return
 				}
 
-				h := Hook{
-					Path:     path,
-					Name:     name,
-					FuncName: t.Name,
+				hook.Name = name
+
+				if f, ok := cmd.FindFlag("priority"); ok {
+					f = strings.ToLower(f)
+					switch f {
+					case "user", "u":
+						hook.Priority = notify.UserPriority
+					case "plugin", "p":
+						hook.Priority = notify.PluginPriority
+					default:
+						pr, err := strconv.Atoi(f)
+
+						if err != nil {
+							errstack.Error(fmt.Sprintf("failed to parse hook priority (\"%s\")\n\tat %s:%d", f, file.Name(), funcLine))
+							return
+						}
+
+						hook.Priority = notify.Priority(pr)
+					}
 				}
 
-				hooks = append(hooks, h)
+				hooks = append(hooks, hook)
 			}
 		})
 	}
@@ -111,7 +136,7 @@ func (p *Parser) collectConfigurators(path string, fileSet *token.FileSet, dc *d
 				return
 			}
 			switch cmd.Command {
-			case "config":
+			case "configure":
 				cfg := Configurator{
 					Path: path,
 					Name: t.Name,
@@ -138,7 +163,7 @@ func (p *Parser) collectStarters(path string, fileSet *token.FileSet, dc *doc.Pa
 				return
 			}
 			switch cmd.Command {
-			case "starter":
+			case "start":
 				s := Starter{
 					Path: path,
 					Name: t.Name,
@@ -252,4 +277,31 @@ func (p *Parser) collectHandlerInfo(path string, fileSet *token.FileSet, dc *doc
 	}
 
 	return handlers
+}
+
+func (p *Parser) collectInitializers(path string, fileSet *token.FileSet, dc *doc.Package, errstack *common.MessageStack) []Initializer {
+	var ins []Initializer
+
+	for _, t := range dc.Funcs {
+		file := fileSet.File(t.Decl.Pos())
+		funcLine := file.Line(t.Decl.Pos())
+
+		command.IterText(t.Doc, func(cmd command.Command, err error) {
+			if err != nil {
+				errstack.Error(fmt.Sprintf("error while parsing command: %s\n\tat %s:%d", err, file.Name(), funcLine))
+				return
+			}
+			switch cmd.Command {
+			case "initialize":
+				in := Initializer{
+					Path: path,
+					Name: t.Name,
+				}
+				ins = append(ins, in)
+			}
+		})
+
+	}
+
+	return ins
 }

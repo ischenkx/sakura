@@ -1,7 +1,7 @@
 package client
 
 import (
-	subscription2 "github.com/RomanIschenko/notify/internal/pubsub/subscription"
+	subscription2 "github.com/ischenkx/notify/internal/pubsub/subscription"
 	"sync/atomic"
 )
 

@@ -2,12 +2,12 @@ package broadcaster
 
 import (
 	"context"
-	common2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/common"
-	group2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/group"
-	session2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/session"
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
-	mutator2 "github.com/RomanIschenko/notify/internal/pubsub/mutator"
-	protocol2 "github.com/RomanIschenko/notify/internal/pubsub/protocol"
+	common2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/common"
+	group2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/group"
+	session2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/session"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	mutator2 "github.com/ischenkx/notify/internal/pubsub/mutator"
+	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
 	"log"
 	"runtime"
 )

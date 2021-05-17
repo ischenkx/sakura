@@ -3,7 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/common/log"
 )

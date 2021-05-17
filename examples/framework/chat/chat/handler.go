@@ -2,7 +2,7 @@ package chat
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify"
+	"github.com/ischenkx/notify"
 )
 
 // notify:handler

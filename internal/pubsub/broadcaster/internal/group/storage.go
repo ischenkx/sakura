@@ -1,8 +1,8 @@
 package group
 
 import (
-	session2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/session"
-	util2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/util"
+	session2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/session"
+	util2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/util"
 	"sync"
 )
 

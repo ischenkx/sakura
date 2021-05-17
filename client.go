@@ -2,7 +2,7 @@ package notify
 
 import (
 	"errors"
-	pubsub2 "github.com/RomanIschenko/notify/internal/pubsub"
+	pubsub2 "github.com/ischenkx/notify/internal/pubsub"
 )
 
 type Client struct {

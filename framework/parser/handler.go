@@ -2,8 +2,8 @@ package parser
 
 import (
 	"fmt"
-	"github.com/RomanIschenko/notify/framework/command"
-	"github.com/RomanIschenko/notify/framework/common"
+	"github.com/ischenkx/notify/framework/command"
+	"github.com/ischenkx/notify/framework/common"
 	"go/doc"
 	"go/token"
 	"log"

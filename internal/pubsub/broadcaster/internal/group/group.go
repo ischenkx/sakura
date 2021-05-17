@@ -1,10 +1,10 @@
 package group
 
 import (
-	history2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/history"
-	session2 "github.com/RomanIschenko/notify/internal/pubsub/broadcaster/internal/session"
-	message2 "github.com/RomanIschenko/notify/internal/pubsub/message"
-	protocol2 "github.com/RomanIschenko/notify/internal/pubsub/protocol"
+	history2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/history"
+	session2 "github.com/ischenkx/notify/internal/pubsub/broadcaster/internal/session"
+	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
 	"sync"
 )
 

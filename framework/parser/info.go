@@ -6,4 +6,5 @@ type Info struct {
 	Starters      []Starter
 	Configurators []Configurator
 	Hooks         []Hook
+	Initializers  []Initializer
 }

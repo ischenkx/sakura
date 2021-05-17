@@ -3,8 +3,8 @@ package startup
 import (
 	"context"
 	"fmt"
-	"github.com/RomanIschenko/notify"
-	"github.com/RomanIschenko/notify/pkg/transports/websockets"
+	"github.com/ischenkx/notify"
+	"github.com/ischenkx/notify/pkg/transports/websockets"
 	"net/http"
 )
 

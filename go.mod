@@ -1,4 +1,4 @@
-module github.com/RomanIschenko/notify
+module github.com/ischenkx/notify
 
 go 1.15
 

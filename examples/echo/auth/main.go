@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/RomanIschenko/notify/pkg/auth/jwt"
+	"github.com/ischenkx/notify/pkg/auth/jwt"
 	jwt2 "github.com/dgrijalva/jwt-go"
 	"log"
 	"net/http"

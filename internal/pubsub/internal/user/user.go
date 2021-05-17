@@ -1,8 +1,8 @@
 package user
 
 import (
-	"github.com/RomanIschenko/notify/internal/pubsub/internal/client"
-	"github.com/RomanIschenko/notify/internal/pubsub/subscription"
+	"github.com/ischenkx/notify/internal/pubsub/internal/client"
+	"github.com/ischenkx/notify/internal/pubsub/subscription"
 )
 
 type User struct {
