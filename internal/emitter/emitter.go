@@ -13,7 +13,7 @@ type Emitter struct {
 	mu                  sync.RWMutex
 }
 
-func (e *Emitter) EncodeRawData(event string, data interface{}) ([]byte, error) {
+func (e *Emitter) EncodeRawData(event string, data []interface{}) ([]byte, error) {
 	bts, err := e.codec.Marshal(data)
 
 	if err != nil {
@@ -57,10 +57,15 @@ func (e *Emitter) GetHandler(name string) (*Handler, bool) {
 	return handler, ok
 }
 
-func (e *Emitter) Handle(name string, hnd interface{}) {
+func (e *Emitter) Handle(name string, hnd interface{}) error {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	e.handlers[name] = newHandler(hnd, e.codec, e.appType, e.clientType)
+	h, err := newHandler(hnd, e.codec, e.appType, e.clientType)
+	if err != nil {
+		return err
+	}
+	e.handlers[name] = h
+	return nil
 }
 
 func New(codec EventsCodec, appType, clientType reflect.Type) *Emitter {

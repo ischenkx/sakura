@@ -4,12 +4,10 @@ import "github.com/ischenkx/notify/internal/events"
 
 type IncomingEvent struct {
 	Name string
-	Data interface{}
+	Data []interface{}
 }
-
 type (
 	EmitHandler                    = func(*App, Event)
-	RawEmitHandler                 = func(*App, rawEvent)
 	ConnectHandler                 = func(*App, ConnectOptions, Client)
 	ReconnectHandler               = func(*App, ConnectOptions, Client)
 	DisconnectHandler              = func(*App, Client)
@@ -20,7 +18,7 @@ type (
 	ClientUnsubscribeHandler       = func(*App, Client, UnsubscribeClientOptions)
 	UserSubscribeHandler           = func(*App, SubscribeUserOptions)
 	UserUnsubscribeHandler         = func(*App, UnsubscribeUserOptions)
-	FailedIncomingEventHandler     = func(*App, string, []byte)
+	FailedIncomingEventHandler     = func(*App, Client, EventError)
 	BeforeClientSubscribeHandler   = func(*App, *SubscribeClientOptions)
 	BeforeClientUnsubscribeHandler = func(*App, *UnsubscribeClientOptions)
 	BeforeUserSubscribeHandler     = func(*App, *SubscribeUserOptions)
@@ -30,9 +28,9 @@ type (
 	BeforeDisconnectHandler        = func(*App, *DisconnectOptions)
 )
 
+
 const (
 	emitHookName                    = "Emit"
-	rawEmitHookName                 = "RawEmit"
 	connectHookName                 = "Connect"
 	reconnectHookName               = "Reconnect"
 	disconnectHookName              = "Disconnect"

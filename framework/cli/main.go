@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/ischenkx/notify/framework/generator"
 	"github.com/ischenkx/notify/framework/parser"
-	"github.com/fatih/color"
 	"os"
 	"path/filepath"
 	"time"
@@ -75,6 +75,8 @@ func main() {
 				color.Red("Failed to write files: %s", e)
 			} else {
 				color.Green("Successfully wrote files")
+
+				//color.Blue("Run your application with the following command: go run %s", *outputPath)
 			}
 		} else {
 			color.Red("Failed to generate source files")

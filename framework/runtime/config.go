@@ -9,6 +9,11 @@ import (
 const ImportPath = "github.com/ischenkx/notify/framework/runtime"
 
 func Configure(b *builder.Builder, fns ...interface{}) {
+
+	if len(fns) > 1 {
+		panic("more than 1 configurator found")
+	}
+
 	for _, f := range fns {
 		val := reflect.ValueOf(f)
 		if !val.IsValid() {

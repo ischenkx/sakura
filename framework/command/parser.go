@@ -126,6 +126,7 @@ func getFlags(s string) ([]Flag, error) {
 			if i > 0 {
 				prev := lexems[i-1]
 				if prev.typ == "eq" {
+					currentFlag.emptyStr = lex.val == ""
 					currentFlag.Value = lex.val
 					flags = append(flags, currentFlag)
 					currentFlag = Flag{}
@@ -183,7 +184,7 @@ func Parse(s string) (expr Command, err error) {
 		if f.Name == "" {
 			return expr, fmt.Errorf("can not find a name for a flag with value \"%s\"", f.Value)
 		}
-		if f.Value == "" && f.hasEq {
+		if f.Value == "" && f.hasEq && !f.emptyStr {
 			return expr, errors.New("unexpected equality sign")
 		}
 	}

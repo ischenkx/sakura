@@ -2,6 +2,7 @@ package notify
 
 import (
 	"context"
+	"errors"
 	"github.com/ischenkx/notify/internal/emitter"
 	"github.com/ischenkx/notify/internal/events"
 	"github.com/ischenkx/notify/internal/pubsub"
@@ -37,6 +38,7 @@ type App struct {
 	id      string
 	pubsub  *pubsub.PubSub
 	hooks   *events.Source
+	proxies *events.Source
 	emitter *emitter.Emitter
 	auth    Auth
 	config  Config
@@ -68,16 +70,18 @@ func (app *App) handleMessage(id string, data []byte) {
 	}
 	hnd, ok := app.emitter.GetHandler(name)
 	if ok {
-		d, ok := hnd.GetData(payload)
-		if !ok {
-			app.callHook(failedReceiveHookName, app.Client(id), name, payload)
+		d, err := hnd.DecodeData(payload)
+		if err != nil {
+			app.callHook(failedReceiveHookName, app.Client(id), name, EventError{Payload: payload, Error: err})
 		} else {
 			app.callHook(receiveHookName, app.Client(id), IncomingEvent{
 				Name: name,
 				Data: d,
 			})
-			hnd.Call(app, app.Client(id), d)
+			hnd.Call(app, app.Client(id), d...)
 		}
+	} else {
+		app.callHook(failedReceiveHookName, app.Client(id), name, EventError{Payload: payload, Error: errors.New("failed to find handler")})
 	}
 }
 
@@ -219,7 +223,10 @@ func (app *App) connect(opts ConnectOptions, auth string) (string, error) {
 }
 
 func (app *App) On(event string, handler interface{}) {
-	app.emitter.Handle(event, handler)
+	if err := app.emitter.Handle(event, handler); err != nil {
+		// TODO: get rid of panics
+		panic(err)
+	}
 }
 
 func (app *App) Off(event string) {
@@ -244,13 +251,6 @@ func (app *App) Emit(ev Event) {
 	})
 
 	app.callHook(emitHookName, ev)
-	app.callHook(rawEmitHookName, rawEvent{
-		Payload: data,
-		Meta:    ev.Meta,
-		Clients: ev.Clients,
-		Users:   ev.Users,
-		Topics:  ev.Topics,
-	})
 }
 
 func New(config Config) *App {

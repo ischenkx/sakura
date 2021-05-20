@@ -7,6 +7,9 @@ import (
 )
 
 func Initialize(info info2.Info, initializers ...interface{}) {
+	if len(initializers) > 1 {
+		panic("more than 1 initializer found")
+	}
 	for _, i := range initializers {
 		val := reflect.ValueOf(i)
 		if !val.IsValid() {
@@ -26,7 +29,7 @@ func Initialize(info info2.Info, initializers ...interface{}) {
 		}
 
 		if !utils.CompareTypes(typ.In(0), reflect.TypeOf(info2.Info{})) {
-			panic("runtime error: configurator must accept one parameter - info")
+			panic("runtime error: initializer must accept one parameter - info")
 		}
 		val.Call([]reflect.Value{reflect.ValueOf(info)})
 	}

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"github.com/ischenkx/notify"
+	hooks2 "github.com/ischenkx/notify/framework/helpers/hooks"
 	"github.com/ischenkx/notify/internal/utils"
 	"reflect"
 )
@@ -38,6 +39,10 @@ func (c HookContainer) Init(rawHooks []Hook) {
 	for _, h := range rawHooks {
 		hooks := c.getOrCreate(h.Priority)
 		event, handler := h.Event, h.Handler
+		h1, ok := hooks2.TryToTransformHandler(handler)
+		if ok {
+			handler = h1
+		}
 		switch event {
 		case "emit":
 			if !matchHandlerAndHandlerType(handler, reflect.TypeOf(new(notify.EmitHandler)).Elem()) {
@@ -75,7 +80,7 @@ func (c HookContainer) Init(rawHooks []Hook) {
 				continue
 			}
 			hooks.OnEvent(handler.(notify.IncomingEventHandler))
-		case "failedEvent":
+		case "failedIncomingEvent":
 			if !matchHandlerAndHandlerType(handler, reflect.TypeOf(new(notify.FailedIncomingEventHandler)).Elem()) {
 				panic("failed to match failedReceive hook")
 				continue

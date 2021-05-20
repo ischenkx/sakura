@@ -2,7 +2,7 @@ package notify
 
 type Event struct {
 	Name      string
-	Data      interface{}
+	Data      []interface{}
 	Clients   []string
 	Users     []string
 	Topics    []string
@@ -10,15 +10,7 @@ type Event struct {
 	Meta      interface{}
 }
 
-type rawEvent struct {
-	Payload []byte
-	Meta    interface{}
-	Clients []string
-	Users   []string
-	Topics  []string
-}
-
-func newEvent(name string, data interface{}, opts ...interface{}) Event {
+func newEvent(name string, data []interface{}, opts ...interface{}) Event {
 	ev := Event{
 		Name: name,
 		Data: data,
@@ -32,4 +24,9 @@ func newEvent(name string, data interface{}, opts ...interface{}) Event {
 		}
 	}
 	return ev
+}
+
+type EventError struct {
+	Payload []byte
+	Error	error
 }

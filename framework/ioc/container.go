@@ -17,6 +17,7 @@ type Container struct {
 	consumers []Consumer
 }
 
+// ConsumersRange loops through consumers
 func (c *Container) ConsumersRange(f func(Consumer)) {
 	if f == nil {return}
 	for _, consumer := range c.consumers {
@@ -24,14 +25,15 @@ func (c *Container) ConsumersRange(f func(Consumer)) {
 	}
 }
 
-func (c *Container) EntriesRange(f func(Entry)) {
+// Range loop through dependencies
+func (c *Container) Range(f func(Entry)) {
 	if f == nil {return}
 	for _, entry := range c.entries {
 		f(entry)
 	}
 }
 
-func (c *Container) FindEntry(opts ...interface{}) (Entry, bool) {
+func (c *Container) Get(opts ...interface{}) (Entry, bool) {
 	var label string
 	var typ reflect.Type
 
@@ -57,8 +59,19 @@ func (c *Container) FindEntry(opts ...interface{}) (Entry, bool) {
 	return Entry{}, false
 }
 
-func (c *Container) AddEntry(entry Entry) error {
-	if _, ok := c.FindEntry(WithLabel(entry.Label), WithType(entry.typ)); ok {
+func (c *Container) Inject(data interface{}, opts ...interface{}) error {
+	var label string
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case LabelOption:
+			label = o.data
+		}
+	}
+	return c.addEntry(NewEntry(data, label))
+}
+
+func (c *Container) addEntry(entry Entry) error {
+	if _, ok := c.Get(WithLabel(entry.Label), WithType(entry.typ)); ok {
 		return errors.New("already exists")
 	}
 
@@ -81,7 +94,7 @@ func (c *Container) AddConsumer(con Consumer) (interface{}, error) {
 			return nil, errors.New("such consumer already exists")
 		}
 	}
-	if e, ok := c.FindEntry(WithType(reflect.TypeOf(con.Object))); ok {
+	if e, ok := c.Get(WithType(reflect.TypeOf(con.Object))); ok {
 		con.Object = e.Value
 	}
 	c.consumers = append(c.consumers, con)
@@ -101,7 +114,7 @@ func (c *Container) initializeConsumer(con *Consumer) {
 		if !ok {
 			continue
 		}
-		e, ok := c.FindEntry(WithType(field.Type), lab)
+		e, ok := c.Get(WithType(field.Type), lab)
 		if !ok {
 			log.Println("failed to find by label and type:", lab, field.Name)
 			continue

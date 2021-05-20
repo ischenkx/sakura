@@ -217,20 +217,27 @@ func Generate(info parser2.Info) (string, error) {
 	hmapperModName := imports.GetOrCreate(hmapper2.ImportPath)
 	notifyModName := imports.GetOrCreate("github.com/ischenkx/notify")
 	builderModName := imports.GetOrCreate("github.com/ischenkx/notify/framework/builder")
-	infoModName := imports.GetOrCreate(info2.ImportPath)
 
 	mainFunc.AddLine(fmt.Sprintf("iocContainer := %s.New()", iocModName))
 	mainFunc.AddLine(fmt.Sprintf("appBuilder := %s.New(iocContainer)", builderModName))
 	mainFunc.AddLines(initConfigurators(&file, imports, "appBuilder", info.Configurators))
 	mainFunc.AddLine(fmt.Sprintf("app := %s.New(*appBuilder.AppConfig())", notifyModName))
-	mainFunc.AddLine(fmt.Sprintf("iocContainer.AddEntry(%s.NewEntry(app, \"\"))", iocModName))
+	mainFunc.AddLine("iocContainer.Inject(app)")
 	mainFunc.AddLine(fmt.Sprintf("handlersMapper := %s.New(app)", hmapperModName))
 	mainFunc.AddLines(initHooks(&file, imports, "app", info.Hooks))
-	mainFunc.AddLine(fmt.Sprintf("runtimeInfo := %s.New(appBuilder.Context(), iocContainer, app)", infoModName))
+
 	mainFunc.AddLines(initDI(&file, imports, "iocContainer", info.Dependencies))
 	mainFunc.AddLines(initHandlers(&file, imports, "handlersMapper", "iocContainer", info.Handlers))
-	mainFunc.AddLines(initInitializers(&file, imports, "runtimeInfo", info.Initializers))
-	mainFunc.AddLines(initStarters(imports, "app", info.Starters))
+
+	infoModName := imports.GetOrCreate(info2.ImportPath)
+	mainFunc.AddLine(fmt.Sprintf("runtimeInfo := %s.New(appBuilder.Context(), iocContainer, app)", infoModName))
+
+	if len(info.Initializers) > 0 {
+		mainFunc.AddLines(initInitializers(&file, imports, "runtimeInfo", info.Initializers))
+	}
+
+
+	mainFunc.AddLines(initStarters(imports, "runtimeInfo", info.Starters))
 
 	file.Add(mainFunc)
 

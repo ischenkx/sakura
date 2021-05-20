@@ -27,8 +27,8 @@ func (c *Client) initRawClient() error {
 	return nil
 }
 
-func (c Client) Emit(name string, data interface{}, options ...interface{}) {
-	ev := newEvent(name, data, options...)
+func (c Client) Emit(name string, data ...interface{}) {
+	ev := newEvent(name, data)
 	ev.Clients = []string{c.id}
 	c.app.Emit(ev)
 }

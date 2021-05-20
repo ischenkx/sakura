@@ -69,8 +69,8 @@ func (u User) UnsubscribeAll(opts ...interface{}) error {
 	return u.app.UnsubscribeUser(unsubOpts)
 }
 
-func (u User) Emit(name string, data interface{}, options ...interface{}) {
-	ev := newEvent(name, data, options...)
+func (u User) Emit(name string, data ...interface{}) {
+	ev := newEvent(name, data)
 	ev.Users = []string{u.id}
 	u.app.Emit(ev)
 }
