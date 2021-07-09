@@ -20,9 +20,6 @@ package main
 import (
 	"context"
 	"github.com/ischenkx/swirl"
-	authmock "github.com/ischenkx/swirl/pkg/auth/mock"
-	"github.com/ischenkx/swirl/pkg/default/batchproto"
-	evcodec "github.com/ischenkx/swirl/pkg/default/event_codec"
 	"github.com/ischenkx/swirl/pkg/transports/websockets"
 	"log"
 	"net/http"
