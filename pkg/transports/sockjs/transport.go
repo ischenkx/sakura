@@ -1,13 +1,13 @@
 package sockjs
 
 import (
-	pubsub2 "github.com/ischenkx/notify/default/pubsub"
 	"github.com/igm/sockjs-go/v3/sockjs"
+	"github.com/ischenkx/swirl"
 )
 
 type Transport struct {
 	session sockjs.Session
-	client  pubsub2.Client
+	client  swirl.Client
 }
 
 func (t *Transport) Write(d []byte) (int, error) {

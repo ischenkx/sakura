@@ -15,7 +15,7 @@ const (
 
 type message struct {
 	opCode byte
-	data []byte
+	data   []byte
 }
 
 func readMessage(data []byte) (message, error) {
@@ -27,7 +27,6 @@ func readMessage(data []byte) (message, error) {
 
 func writeMessage(writer io.Writer, m message) (int, error) {
 	n, err := writer.Write([]byte{m.opCode})
-
 
 	if err != nil {
 		return 0, err

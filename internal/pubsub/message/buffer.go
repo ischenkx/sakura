@@ -6,7 +6,7 @@ import (
 
 var bufferPool = &sync.Pool{
 	New: func() interface{} {
-		return make([]Message, 10)
+		return make([]Message, 0, 10)
 	},
 }
 
@@ -20,6 +20,9 @@ func (b *Buffer) Len() int {
 }
 
 func (b *Buffer) Push(messages ...Message) {
+	if b.messages == nil {
+		b.messages = bufferPool.Get().([]Message)[:0]
+	}
 	b.messages = append(b.messages, messages...)
 }
 
@@ -49,6 +52,7 @@ func BufferFrom(messages []Message) Buffer {
 }
 
 func CopyBuffer(b Buffer) Buffer {
+
 	messages := bufferPool.Get().([]Message)[:0]
 
 	messages = append(messages, b.messages...)
@@ -61,7 +65,7 @@ func CopyBuffer(b Buffer) Buffer {
 
 func NewBuffer() Buffer {
 	return Buffer{
-		messages: bufferPool.Get().([]Message)[:0],
+		messages: nil,
 		pooled:   true,
 	}
 }

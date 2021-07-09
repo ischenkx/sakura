@@ -16,6 +16,6 @@ func (b Batch) Bytes() []byte {
 func NewBatch(buf Buffer, data []byte) Batch {
 	return Batch{
 		buffer: buf,
-		bytes: data,
+		bytes:  data,
 	}
 }

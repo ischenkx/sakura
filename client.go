@@ -1,116 +1,125 @@
-package notify
+package swirl
 
 import (
-	"errors"
-	pubsub2 "github.com/ischenkx/notify/internal/pubsub"
+	"github.com/ischenkx/swirl/internal/pubsub/message"
+	"time"
 )
 
-type Client struct {
-	id        string
-	app       *App
-	rawClient pubsub2.Client
+type localClient struct {
+	id  string
+	app *App
 }
 
-func (c *Client) initRawClient() error {
-	if c.rawClient == nil {
-		rawClient, err := c.app.pubsub.Client(c.id)
-		if err != nil {
-			return err
-		}
-		c.rawClient = rawClient
-	}
+func (c localClient) Emit(name string, options ...interface{}) {
+	var args []interface{}
+	var metaInfo interface{}
+	var timeStamp int64
 
-	if !c.rawClient.Valid() {
-		return errors.New("underlying client is invalid")
-	}
-
-	return nil
-}
-
-func (c Client) Emit(name string, data ...interface{}) {
-	ev := newEvent(name, data)
-	ev.Clients = []string{c.id}
-	c.app.Emit(ev)
-}
-
-func (c Client) Subscriptions() ([]string, error) {
-	return c.app.pubsub.ClientSubscriptions(c.ID())
-}
-
-func (c Client) Subscribed(t string) (bool, error) {
-	return c.app.pubsub.ClientSubscribed(c.id, t)
-}
-
-func (c Client) Subscribe(topic string, opts ...interface{}) error {
-	
-	subOpts := SubscribeClientOptions{
-		ID:        c.ID(),
-		Topic:     topic,
-	}
-	
-	for _, opt := range opts {
+	for _, opt := range options {
 		switch o := opt.(type) {
-		case MetaInfoOption:
-			subOpts.Meta = o.Data
-		case TimeStampOption:
-			subOpts.TimeStamp = o.UnixTime
+		case MetaInfo:
+			metaInfo = o
+		case TimeStamp:
+			timeStamp = time.Time(o).UnixNano()
+		case Args:
+			args = o
 		}
 	}
-
-	return c.app.SubscribeClient(subOpts)
+	data, err := c.app.emitter.EncodeRawData(name, args)
+	if err != nil {
+		c.app.events.callError(EncodingError{
+			Reason: err,
+			EventOptions: EventOptions{
+				Name:      name,
+				Args:      args,
+				TimeStamp: timeStamp,
+				MetaInfo:  metaInfo,
+			},
+		})
+		return
+	}
+	c.app.pubsub.SendToClient(c.id, message.New(data))
+	c.app.events.callEmit(EmitOptions{
+		Clients: []string{c.id},
+		EventOptions: EventOptions{
+			Name:      name,
+			Args:      args,
+			TimeStamp: timeStamp,
+			MetaInfo:  metaInfo,
+		},
+	})
 }
 
-func (c Client) Unsubscribe(topic string, opts ...interface{}) error {
-	unsubOpts := UnsubscribeClientOptions{
-		ID:        c.ID(),
-		Topic:     topic,
-	}
-
-	for _, opt := range opts {
-		switch o := opt.(type) {
-		case MetaInfoOption:
-			unsubOpts.Meta = o.Data
-		case TimeStampOption:
-			unsubOpts.TimeStamp = o.UnixTime
+func (c localClient) Subscribe(options SubscribeOptions) {
+	cl := ChangeLog{TimeStamp: options.TimeStamp}
+	for _, topic := range options.Topics {
+		if locCl, err := c.app.pubsub.Subscribe(c.id, topic, options.TimeStamp); err == nil {
+			cl.Merge(locCl)
+			c.app.events.callClientSubscribe(c, topic, options.TimeStamp)
 		}
 	}
-
-	return c.app.UnsubscribeClient(unsubOpts)
+	c.app.events.callChange(cl)
 }
 
-func (c Client) UnsubscribeAll(opts ...interface{}) error {
-	unsubOpts := UnsubscribeClientOptions{
-		ID: c.ID(),
-		All: true,
-	}
-	for _, opt := range opts {
-		switch o := opt.(type) {
-		case MetaInfoOption:
-			unsubOpts.Meta = o.Data
-		case TimeStampOption:
-			unsubOpts.TimeStamp = o.UnixTime
+func (c localClient) Unsubscribe(options UnsubscribeOptions) {
+	cl := ChangeLog{TimeStamp: options.TimeStamp}
+	for _, topic := range options.Topics {
+		if locCl, err := c.app.pubsub.Unsubscribe(c.id, topic, options.TimeStamp); err == nil {
+			cl.Merge(locCl)
+			c.app.events.callClientUnsubscribe(c, topic, options.TimeStamp)
 		}
 	}
-	return c.app.UnsubscribeClient(unsubOpts)
+	c.app.events.callChange(cl)
 }
 
-func (c Client) ID() string {
+func (c localClient) Disconnect(options DisconnectOptions) {
+	defer c.app.events.callDisconnect(c)
+	cl := ChangeLog{TimeStamp: options.TimeStamp}
+	cl.Merge(c.app.pubsub.Disconnect(c.id, options.TimeStamp))
+	cl.Merge(c.app.pubsub.Users().Delete(c.userID(), c.id, options.TimeStamp))
+	c.app.events.callChange(cl)
+
+}
+
+func (c localClient) Active() bool {
+	return c.app.pubsub.IsActive(c.id)
+}
+
+func (c localClient) userID() string {
+	return c.app.pubsub.Users().UserByClient(c.id)
+}
+
+func (c localClient) User() User {
+	return c.app.User(c.userID())
+}
+
+func (c localClient) ID() string {
 	return c.id
 }
 
-func (c Client) User() (User, error) {
-	if err := c.initRawClient(); err != nil {
-		return User{}, err
+func (c localClient) Subscriptions() SubscriptionList {
+	return variadicSubList{
+		count: func(list SubscriptionList) int {
+			return c.app.pubsub.CountSubscriptions(c.id)
+		},
+		array: func(list SubscriptionList) []Subscription {
+			return c.app.pubsub.Subscriptions(c.id)
+		},
 	}
+}
 
-	userID := c.rawClient.User()
+func (c localClient) Events() ClientEvents {
+	return c.app.events.forClient(c.id)
+}
 
-	if userID == "" {
-		return User{}, errors.New("no user is bound to the client")
-	}
-
-	return User{
-		id:  c.rawClient.User(),
-		app: nil,
-	}, nil
+type Client interface {
+	ID() string
+	Emit(string, ...interface{})
+	Subscribe(options SubscribeOptions)
+	Unsubscribe(options UnsubscribeOptions)
+	Disconnect(options DisconnectOptions)
+	User() User
+	Active() bool
+	Events() ClientEvents
+	Subscriptions() SubscriptionList
 }

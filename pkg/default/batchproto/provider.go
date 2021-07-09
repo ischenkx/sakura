@@ -1,7 +1,7 @@
 package batchproto
 
 import (
-	protocol2 "github.com/ischenkx/notify/internal/pubsub/protocol"
+	"github.com/ischenkx/swirl/internal/pubsub/protocol"
 	"sync"
 )
 
@@ -9,15 +9,15 @@ type Provider struct {
 	pool *sync.Pool
 }
 
-func (p Provider) New() protocol2.Protocol {
+func (p Provider) New() protocol.Protocol {
 	return p.pool.Get().(Protocol)
 }
 
-func (p Provider) Put(proto protocol2.Protocol) {
+func (p Provider) Put(proto protocol.Protocol) {
 	p.pool.Put(proto)
 }
 
-func NewProvider(maxBatchSize int) protocol2.Provider {
+func NewProvider(maxBatchSize int) protocol.Provider {
 	return Provider{
 		pool: &sync.Pool{
 			New: func() interface{} {

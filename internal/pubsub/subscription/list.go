@@ -1,37 +1,75 @@
 package subscription
 
-import "errors"
-
 type List struct {
-	data map[string]Subscription
+	count int
+	subs  map[string]Subscription
 }
 
-func (l List) Add(id string, ts int64) error {
-	s := l.data[id]
-	if s.TimeStamp > ts {
-		return errors.New("invalid timestamp")
-	}
-	s.TimeStamp = ts
-	s.Active = true
-	l.data[id] = s
-	return nil
-}
-
-func (l List) Delete(id string, ts int64) error {
-	s, ok := l.data[id]
+func (r *List) Add(topic string, ts int64) bool {
+	s, ok := r.subs[topic]
 	if !ok {
-		return errors.New("no subscription")
+		s = Subscription{
+			Topic:     topic,
+			TimeStamp: ts,
+			Active:    true,
+		}
+		r.subs[topic] = s
+		r.count++
 	}
-	s.TimeStamp = ts
-	s.Active = false
-	l.data[id] = s
-	return nil
+	if s.TimeStamp >= ts {
+		return s.Active
+	}
+	r.subs[topic] = Subscription{
+		Topic:     topic,
+		TimeStamp: ts,
+		Active:    true,
+	}
+	r.count++
+
+	return true
 }
 
-func (l List) Map() map[string]Subscription {
-	return l.data
+func (r *List) Delete(topic string, ts int64) bool {
+	s, ok := r.subs[topic]
+	if !ok {
+		s = Subscription{
+			Topic:     topic,
+			TimeStamp: ts,
+			Active:    false,
+		}
+		r.subs[topic] = s
+
+		// i don't need to count--, bc subscription has never existed before
+	}
+	if s.TimeStamp >= ts {
+		return !s.Active
+	}
+	r.subs[topic] = Subscription{
+		Topic:     topic,
+		TimeStamp: ts,
+		Active:    false,
+	}
+	r.count--
+
+	return true
 }
 
-func NewList() List {
-	return List{map[string]Subscription{}}
+func (r *List) Count() int {
+	return r.count
+}
+
+func (r *List) Iter(f func(s Subscription)) {
+	if f == nil {
+		return
+	}
+	for _, subscription := range r.subs {
+		f(subscription)
+	}
+}
+
+func NewList() *List {
+	return &List{
+		count: 0,
+		subs:  map[string]Subscription{},
+	}
 }

@@ -1,6 +1,5 @@
-package notify
+package swirl
 
-type Auth interface {
-	Authorize(token string) (id, userId string, err error)
-	Register(id, userId string) (token string, err error)
+type Authorizer interface {
+	Authorize(data string) (client, user string, err error)
 }

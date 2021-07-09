@@ -3,7 +3,8 @@ package emitter
 import (
 	"errors"
 	"fmt"
-	"github.com/ischenkx/notify/internal/utils"
+	"github.com/ischenkx/swirl/internal/utils"
+
 	"reflect"
 )
 
@@ -12,7 +13,7 @@ type Handler struct {
 	rawHandler            interface{}
 	handlerVal            reflect.Value
 	appIndex, clientIndex int
-	dataTypes			  []reflect.Type
+	dataTypes             []reflect.Type
 	codec                 EventsCodec
 }
 
@@ -60,7 +61,7 @@ func (h *Handler) Call(app interface{}, client interface{}, data ...interface{})
 		arg := data[i]
 		argType := reflect.TypeOf(arg).Elem()
 		val := reflect.ValueOf(arg).Elem()
-		if !utils.CompareTypes(h.dataTypes[i], argType) {
+		if !(utils.CompareTypes(h.dataTypes[i], argType) || utils.IsEmptyInterface(h.dataTypes[i])) {
 			return fmt.Errorf("unexpected arg at position %d: exepected %s, but received %s", i+argsUsed+1, h.dataTypes[i].String(), argType.String())
 		}
 		args[argsUsed+i] = val
@@ -100,7 +101,7 @@ func newHandler(hnd interface{}, codec EventsCodec, appType, clientType reflect.
 			h.appIndex = i
 			continue
 		} else if utils.CompareTypes(paramType, clientType) {
-			if h.appIndex >= 0 {
+			if h.clientIndex >= 0 {
 				return nil, errors.New("two clients in one eventHandler")
 			}
 
@@ -111,6 +112,11 @@ func newHandler(hnd interface{}, codec EventsCodec, appType, clientType reflect.
 			continue
 		}
 		dataTypesFlag = true
+
+		if utils.IsInterface(paramType) && !utils.IsEmptyInterface(paramType) {
+			return nil, errors.New("handler can not receive interface parameters")
+		}
+
 		h.dataTypes = append(h.dataTypes, paramType)
 	}
 	return h, nil

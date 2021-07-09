@@ -1,13 +1,13 @@
 package protocol
 
 import (
-	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	"github.com/ischenkx/swirl/internal/pubsub/message"
 )
 
 type Writer interface {
-	Write(message2.Batch, interface{})
+	Write(message.Batch, interface{})
 }
 
 type Protocol interface {
-	Encode(writer Writer, buffer message2.Buffer, metadata interface{})
+	Encode(writer Writer, buffer message.Buffer, metadata interface{})
 }

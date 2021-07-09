@@ -1,6 +1,6 @@
-package notify
+package swirl
 
 const (
-	PluginPriority Priority = 0
-	UserPriority            = 1 << 16
+	PluginPriority HookPriority = 0
+	UserPriority                = 1 << 16
 )

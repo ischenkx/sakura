@@ -2,530 +2,203 @@ package pubsub
 
 import (
 	"context"
-	"errors"
-	"github.com/ischenkx/notify/internal/pubsub/broadcaster"
-	"github.com/ischenkx/notify/internal/pubsub/internal/client"
-	"github.com/ischenkx/notify/internal/pubsub/internal/topic"
-	"github.com/ischenkx/notify/internal/pubsub/internal/user"
-	"github.com/ischenkx/notify/internal/pubsub/protocol"
-	"github.com/ischenkx/notify/pkg/default/batchproto"
-	"sync"
+	"github.com/ischenkx/swirl/internal/pubsub/changelog"
+	"github.com/ischenkx/swirl/internal/pubsub/common"
+	"github.com/ischenkx/swirl/internal/pubsub/engine"
+	"github.com/ischenkx/swirl/internal/pubsub/message"
+	"github.com/ischenkx/swirl/internal/pubsub/protocol"
+	"github.com/ischenkx/swirl/internal/pubsub/subscription"
+	"github.com/ischenkx/swirl/internal/pubsub/user"
+	"github.com/ischenkx/swirl/internal/pubsub/util"
+	"github.com/ischenkx/swirl/pkg/default/batchproto"
+	"runtime"
 	"time"
+
+	"io"
 )
 
 type Config struct {
-	InvalidationTime time.Duration
-	CleanInterval    time.Duration
-	ProtoProvider    protocol.Provider
+	ClientInvalidationTime time.Duration
+	ProtocolProvider       protocol.Provider
+	History                message.History
+	Engines                int
+}
+
+func (c *Config) validate() {
+	c.Engines = 100
+	c.ClientInvalidationTime = time.Minute * 2
+	c.ProtocolProvider = batchproto.NewProvider(1024)
+}
+
+type ConnectResult struct {
+	IsReconnect         bool
+	UnrecoverableTopics []string
 }
 
 type PubSub struct {
-	clients         map[string]*client.Client
-	topics          map[string]*topic.Topic
-	users           map[string]*user.User
-	inactiveClients map[string]int64
-
-	broadcaster *broadcaster.Broadcaster
-	config      Config
-	mu          sync.RWMutex
+	engines          []*engine.Engine
+	users            *user.Registry
+	queue            chan common.Flusher
+	protocolProvider protocol.Provider
+	history          message.History
+	config           Config
 }
 
-func (p *PubSub) Clean() ([]Client, *ChangeLog) {
-	var clients []string
-	now := time.Now().UnixNano()
-	p.mu.Lock()
-	for clientID, timestamp := range p.inactiveClients {
-		if now-timestamp >= int64(p.config.InvalidationTime) {
-			clients = append(clients, clientID)
+func (p *PubSub) engine(id string) *engine.Engine {
+	idx := util.Hash(id) % len(p.engines)
+	return p.engines[idx]
+}
+
+func (p *PubSub) IsActive(id string) bool {
+	return p.engine(id).IsActive(id)
+}
+
+func (p *PubSub) Subscribe(id, topic string, ts int64) (changelog.ChangeLog, error) {
+	cl := changelog.ChangeLog{TimeStamp: ts}
+	err := p.engine(id).AddClientSubscription(id, topic, ts)
+	if s, ok := p.engine(id).Session(id); ok {
+		if p.engine(topic).AddTopicClient(topic, id, s, ts) {
+			cl.TopicsUp = append(cl.TopicsUp, topic)
 		}
 	}
-	p.mu.Unlock()
-	return p.Disconnect(DisconnectOptions{
-		Clients:   clients,
-		TimeStamp: time.Now().UnixNano(),
-	})
+	return cl, err
 }
 
-func (p *PubSub) Connect(opts ConnectOptions) ConnectResult {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-
-	mutator := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mutator.Close()
-
-	isReconnected := false
-
-	p.mu.Lock()
-	c, clientExists := p.clients[opts.ClientID]
-
-	if clientExists {
-		isReconnected = true
-		if c.User() != opts.UserID {
-			p.mu.Unlock()
-			return ConnectResult{
-				Client: nil,
-				ChangeLog: changelog,
-				Reconnected: isReconnected,
-				Error: errors.New("failed to connect: user id mismatch"),
-			}
+func (p *PubSub) Unsubscribe(id, topic string, ts int64) (changelog.ChangeLog, error) {
+	cl := changelog.ChangeLog{TimeStamp: ts}
+	err := p.engine(id).DeleteClientSubscription(id, topic, ts)
+	if ok, amount := p.engine(topic).DeleteTopicClient(topic, id, false, ts); ok {
+		if amount == 0 {
+			cl.TopicsDown = append(cl.TopicsDown, topic)
 		}
-		delete(p.inactiveClients, c.ID())
-	} else {
-		c = client.New(opts.ClientID, opts.UserID)
-		p.clients[c.ID()] = c
+	}
+	return cl, err
+}
 
-		changelog.addCreatedClient(c.ID())
-
-		if opts.UserID != "" {
-			u, userExists := p.users[opts.UserID]
-			if !userExists {
-				u = user.New()
-				p.users[opts.UserID] = u
-				changelog.addCreatedUser(opts.UserID)
-			}
-			u.Add(c)
-			mutator.AttachUser(c.ID(), opts.UserID)
-			for topicId, sub := range u.Subscriptions().Map() {
-				if !sub.Active {
+func (p *PubSub) Connect(id string, w io.WriteCloser, ts int64) (ConnectResult, error) {
+	var connectResult ConnectResult
+	_, reconnected, disconnectTime, err := p.engine(id).UpdateClient(id, w, ts)
+	if err == nil {
+		p.users.UpdateClientPresence(id, w != nil, ts)
+		if reconnected && p.history != nil {
+			now := time.Now().UnixNano()
+			for _, sub := range p.engine(id).Subscriptions(id) {
+				if sub.TimeStamp > disconnectTime {
+					connectResult.UnrecoverableTopics = append(connectResult.UnrecoverableTopics, sub.Topic)
 					continue
 				}
-				// if sub is not active try to add for information about previous user subscriptions
-				t := p.topics[topicId]
-				if err := c.Subscriptions().Add(topicId, opts.TimeStamp); err == nil {
-					t.Add(c.ID())
-					mutator.Subscribe(c.ID(), topicId)
-				}
-			}
-		}
-	}
-
-	mutator.UpdateClient(c.ID(), opts.Writer)
-	p.mu.Unlock()
-
-	return ConnectResult{
-		Client: c,
-		ChangeLog: changelog,
-		Reconnected: isReconnected,
-		Error: nil,
-	}
-}
-
-func (p *PubSub) Inactivate(id string, ts int64) (Client, *ChangeLog, error) {
-
-	changelog := newChangeLog(ts)
-
-	mutator := p.broadcaster.Mutator(ts)
-	defer mutator.Close()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	c, ok := p.clients[id]
-	if !ok {
-		return nil, changelog, errors.New("failed to inactivate: no client with such id")
-	}
-	p.inactiveClients[id] = ts
-
-	changelog.addInactivatedClient(id)
-
-	mutator.UpdateClient(id, nil)
-
-	return c, changelog, nil
-}
-
-func (p *PubSub) Disconnect(opts DisconnectOptions) ([]Client, *ChangeLog) {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-
-	var clients []Client
-
-	mutator := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mutator.Close()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if opts.All {
-		for clientID, c := range p.clients {
-			mutator.DeleteClient(clientID)
-			changelog.addDeletedClient(clientID)
-			clients = append(clients, c)
-			c.Invalidate()
-			delete(p.clients, clientID)
-			delete(p.inactiveClients, clientID)
-
-			if c.User() != "" {
-				if u, userExists := p.users[c.User()]; userExists {
-					u.Del(c.ID())
-					mutator.DetachUser(c.ID(), c.User(), true)
-					if len(u.Clients()) == 0 {
-						changelog.addDeletedUser(c.User())
-						delete(p.users, c.User())
-					}
-				}
-			}
-			for topicID := range c.Subscriptions().Map() {
-				mutator.Unsubscribe(c.ID(), topicID, true)
-				if t, topicExists := p.topics[topicID]; topicExists {
-					t.Del(topicID)
-					if t.Len() == 0 {
-						changelog.addDeletedTopic(topicID)
-						delete(p.topics, topicID)
-					}
-				}
-			}
-		}
-	} else {
-		for _, clientID := range opts.Clients {
-			mutator.DeleteClient(clientID)
-			c, clientExists := p.clients[clientID]
-			delete(p.inactiveClients, clientID)
-			if !clientExists {
-				continue
-			}
-
-			changelog.addDeletedClient(clientID)
-			clients = append(clients, c)
-			c.Invalidate()
-			delete(p.clients, clientID)
-			if c.User() != "" {
-				if u, userExists := p.users[c.User()]; userExists {
-					u.Del(c.ID())
-					mutator.DetachUser(c.ID(), c.User(), true)
-					if len(u.Clients()) == 0 {
-						changelog.addDeletedUser(c.User())
-						delete(p.users, c.User())
-					}
-				}
-			}
-			for topicID := range c.Subscriptions().Map() {
-				mutator.Unsubscribe(c.ID(), topicID, true)
-				if t, topicExists := p.topics[topicID]; topicExists {
-					t.Del(c.ID())
-					if t.Len() == 0 {
-						changelog.addDeletedTopic(topicID)
-						delete(p.topics, topicID)
-					}
-				}
-			}
-		}
-		for _, userID := range opts.Users {
-			u, userExists := p.users[userID]
-
-			if !userExists {
-				continue
-			}
-
-			delete(p.users, userID)
-			changelog.addDeletedUser(userID)
-
-			for clientID, c := range u.Clients() {
-				u.Del(clientID)
-
-				mutator.DetachUser(c.ID(), userID, true)
-
-				c.Invalidate()
-
-				delete(p.clients, clientID)
-
-				changelog.addDeletedClient(c.ID())
-
-				clients = append(clients, c)
-
-				mutator.DeleteClient(c.ID())
-
-				for topicID := range c.Subscriptions().Map() {
-					mutator.Unsubscribe(c.ID(), topicID, true)
-					if t, topicExists := p.topics[topicID]; topicExists {
-						t.Del(topicID)
-						if t.Len() == 0 {
-							changelog.addDeletedTopic(topicID)
-							delete(p.topics, topicID)
-						}
+				if sub.Active {
+					if messages, err := p.history.Snapshot(sub.Topic, disconnectTime, now); err != nil {
+						connectResult.UnrecoverableTopics = append(connectResult.UnrecoverableTopics, sub.Topic)
+					} else {
+						p.engine(id).SendToClient(id, messages)
 					}
 				}
 			}
 		}
 	}
-	return clients, changelog
+	connectResult.IsReconnect = reconnected
+	return connectResult, err
 }
 
-func (p *PubSub) SubscribeClient(opts SubscribeClientOptions) (*ChangeLog, error) {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-
-	mut := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mut.Close()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	topicID := opts.Topic
-
-	t, topicExists := p.topics[topicID]
-
-	if !topicExists {
-		t = topic.New()
-	}
-
-	c, clientExists := p.clients[opts.ID]
-
-	if !clientExists {
-		return changelog, errors.New("failed to find a client with specified id")
-	}
-
-	if err := c.Subscriptions().Add(topicID, opts.TimeStamp); err == nil {
-		t.Add(c.ID())
-		mut.Subscribe(c.ID(), topicID)
-	} else {
-		return changelog, err
-	}
-
-	if !topicExists && t.Len() > 0 {
-		changelog.addCreatedTopic(topicID)
-		p.topics[topicID] = t
-	}
-
-	return changelog, nil
+func (p *PubSub) Inactivate(id string, ts int64) {
+	p.users.UpdateClientPresence(id, false, ts)
+	p.engine(id).Inactivate(id, ts)
 }
 
-func (p *PubSub) SubscribeUser(opts SubscribeUserOptions) (*ChangeLog, error) {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-
-	mut := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mut.Close()
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	topicID := opts.Topic
-
-	t, topicExists := p.topics[topicID]
-
-	if !topicExists {
-		t = topic.New()
-	}
-
-	u, userExists := p.users[opts.ID]
-	if !userExists {
-		return changelog, errors.New("failed to find a user with specified id")
-	}
-	err := u.Subscribe(topicID, opts.TimeStamp, func(c *client.Client) {
-		t.Add(c.ID())
-		mut.Subscribe(c.ID(), topicID)
-	})
-
-	return changelog, err
-}
-
-func (p *PubSub) UnsubscribeClient(opts UnsubscribeClientOptions) (*ChangeLog, error) {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-	mutator := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mutator.Close()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	u, ok := p.users[opts.ID]
-	if !ok {
-		return changelog, errors.New("failed to find a user with a specified id")
-	}
-	if opts.All {
-		for topicId := range u.Subscriptions().Map() {
-			u.Unsubscribe(topicId, opts.TimeStamp, func(c *client.Client) {
-				if t, ok := p.topics[topicId]; ok {
-					t.Del(c.ID())
-					if t.Len() == 0 {
-						delete(p.topics, topicId)
-						changelog.addDeletedTopic(topicId)
-					}
-				}
-				mutator.Unsubscribe(c.ID(), topicId, false)
-			})
-		}
-		return changelog, nil
-	} else {
-		err := u.Unsubscribe(opts.Topic, opts.TimeStamp, func(c *client.Client) {
-			t, ok := p.topics[opts.Topic]
-			if ok {
-				t.Del(c.ID())
-				mutator.Unsubscribe(c.ID(), opts.Topic, false)
-				if t.Len() == 0 {
-					delete(p.topics, opts.Topic)
-					changelog.addDeletedTopic(opts.Topic)
+func (p *PubSub) Disconnect(id string, ts int64) changelog.ChangeLog {
+	cl := changelog.ChangeLog{TimeStamp: ts}
+	if info, ok := p.engine(id).Disconnect(id); ok {
+		cl.ClientsDown = append(cl.ClientsDown, id)
+		p.users.Delete(p.users.UserByClient(id), id, ts)
+		info.Subscriptions.Iter(func(s subscription.Subscription) {
+			if ok, amount := p.engine(s.Topic).DeleteTopicClient(s.Topic, id, true, ts); ok {
+				if amount == 0 {
+					cl.TopicsDown = append(cl.TopicsDown, s.Topic)
 				}
 			}
 		})
-		return changelog, err
 	}
+
+	return cl
 }
 
-func (p *PubSub) UnsubscribeUser(opts UnsubscribeUserOptions) (*ChangeLog, error) {
-	opts.Validate()
-	changelog := newChangeLog(opts.TimeStamp)
-	mutator := p.broadcaster.Mutator(opts.TimeStamp)
-	defer mutator.Close()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	u, ok := p.users[opts.ID]
-	if !ok {
-		return changelog, errors.New("failed to find client with a specified id")
-	}
-	if opts.All {
-		for topicId := range u.Subscriptions().Map() {
-			u.Unsubscribe(topicId, opts.TimeStamp, func(c *client.Client) {
-				if t, ok := p.topics[topicId]; ok {
-					t.Del(c.ID())
-					if t.Len() == 0 {
-						delete(p.topics, topicId)
-						changelog.addDeletedTopic(topicId)
-					}
-				}
-				mutator.Unsubscribe(c.ID(), topicId, false)
+func (p *PubSub) SendToTopic(id string, mes message.Message) {
+	p.engine(id).SendToTopic(id, mes)
+}
+
+func (p *PubSub) SendToClient(id string, mes message.Message) error {
+	return p.engine(id).SendToClient(id, []message.Message{mes})
+}
+
+func (p *PubSub) Subscriptions(id string) []subscription.Subscription {
+	return p.engine(id).Subscriptions(id)
+}
+
+func (p *PubSub) TopicSubscribers(id string) []string {
+	return p.engine(id).TopicSubscribers(id)
+}
+
+func (p *PubSub) CountTopicSubscribers(id string) int {
+	return p.engine(id).CountTopicSubscribers(id)
+}
+
+func (p *PubSub) CountSubscriptions(id string) int {
+	return p.engine(id).CountSubscriptions(id)
+}
+
+func (p *PubSub) Clean() []string {
+	clients := make([]string, 0)
+	for _, e := range p.engines {
+		engineClients := e.Clean()
+		timeStamp := time.Now().UnixNano()
+		for _, info := range engineClients {
+			clients = append(clients, info.ID)
+			p.users.Delete(p.users.UserByClient(info.ID), info.ID, timeStamp)
+			info.Subscriptions.Iter(func(s subscription.Subscription) {
+				p.engine(s.Topic).DeleteTopicClient(s.Topic, info.ID, true, timeStamp)
 			})
 		}
-		return changelog, nil
-	} else {
-		err := u.Unsubscribe(opts.Topic, opts.TimeStamp, func(c *client.Client) {
-			if t, ok := p.topics[opts.Topic]; ok {
-				t.Del(c.ID())
-				if t.Len() == 0 {
-					delete(p.topics, opts.Topic)
-					changelog.addDeletedTopic(opts.Topic)
-				}
-			}
-			mutator.Unsubscribe(c.ID(), opts.Topic, false)
-		})
-		return changelog, err
 	}
+	return clients
 }
 
-func (p *PubSub) Publish(opts PublishOptions) {
-	opts.Validate()
-	p.broadcaster.Broadcast(opts.Clients, opts.Users, opts.Topics, opts.Data)
+func (p *PubSub) processQueue(ctx context.Context) {
+	proto := p.protocolProvider.New()
+	defer p.protocolProvider.Put(proto)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case f := <-p.queue:
+			f.Flush(proto)
+		}
+	}
 }
 
 func (p *PubSub) Start(ctx context.Context) {
-	p.broadcaster.Start(ctx)
-}
-
-func (p *PubSub) Metrics() Metrics {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return Metrics{
-		Clients:         len(p.clients),
-		Users:           len(p.users),
-		Topics:          len(p.topics),
-		InactiveClients: len(p.inactiveClients),
+	for i := 0; i < runtime.NumCPU(); i++ {
+		go p.processQueue(ctx)
 	}
 }
 
-func (p *PubSub) ClientSubscribed(client string, topic string) (bool, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if cl, ok := p.clients[client]; ok {
-		sub, ok := cl.Subscriptions().Map()[topic]
-		return sub.Active && ok, nil
-	}
-	return false, errors.New("no client found")
-}
-
-func (p *PubSub) UserSubscribed(user string, topic string) (bool, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if u, ok := p.users[user]; ok {
-		sub, ok := u.Subscriptions().Map()[topic]
-		return sub.Active && ok, nil
-	}
-	return false, errors.New("no client found")
-}
-
-func (p *PubSub) TopicSubscribers(topic string) ([]string, error) {
-	var subs []string
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if t, ok := p.topics[topic]; ok {
-		subs = make([]string, 0, t.Len())
-		for id, _ := range t.Clients() {
-			subs = append(subs, id)
-		}
-		return subs, nil
-	}
-
-	return nil, errors.New("no topic found")
-
-}
-
-func (p *PubSub) ClientSubscriptions(id string) ([]string, error) {
-	var subs []string
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if t, ok := p.clients[id]; ok {
-		subs = make([]string, 0, len(t.Subscriptions().Map()))
-		for topicID, sub := range t.Subscriptions().Map() {
-			if sub.Active {
-				subs = append(subs, topicID)
-			}
-		}
-		return subs, nil
-	}
-	return nil, errors.New("no client found")
-}
-
-func (p *PubSub) UserSubscriptions(id string) ([]string, error) {
-	var subs []string
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if t, ok := p.users[id]; ok {
-		subs = make([]string, 0, len(t.Subscriptions().Map()))
-		for topicID, sub := range t.Subscriptions().Map() {
-			if sub.Active {
-				subs = append(subs, topicID)
-			}
-		}
-
-		return subs, nil
-	}
-	return nil, errors.New("no user found")
-}
-
-func (p *PubSub) UserClients(id string) ([]string, error) {
-	var clients []string
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if t, ok := p.users[id]; ok {
-		clients = make([]string, 0, len(t.Clients()))
-		for clientID := range t.Clients() {
-			clients = append(clients, clientID)
-		}
-		return clients, nil
-	}
-	return nil, errors.New("no user found")
-}
-
-func (p *PubSub) Client(id string) (Client, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	c, ok := p.clients[id]
-	if ok {
-		return c, nil
-	}
-	return nil, errors.New("no client found")
+func (p *PubSub) Users() *user.Registry {
+	return p.users
 }
 
 func New(cfg Config) *PubSub {
-	if cfg.ProtoProvider == nil {
-		cfg.ProtoProvider = batchproto.NewProvider(1024)
+	cfg.validate()
+	ps := &PubSub{
+		engines:          nil,
+		history:          cfg.History,
+		users:            user.NewRegistry(),
+		queue:            make(chan common.Flusher, 8192),
+		protocolProvider: cfg.ProtocolProvider,
 	}
 
-	return &PubSub{
-		clients:         map[string]*client.Client{},
-		users:           map[string]*user.User{},
-		topics:          map[string]*topic.Topic{},
-		inactiveClients: map[string]int64{},
-		config:          cfg,
-		broadcaster:     broadcaster.New(cfg.ProtoProvider),
+	for i := 0; i < cfg.Engines; i++ {
+		ps.engines = append(ps.engines, engine.New(ps.queue, cfg.ClientInvalidationTime))
 	}
+
+	return ps
 }

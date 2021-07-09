@@ -1,23 +1,26 @@
-package notify
+package swirl
 
-import "time"
-
-type TimeStampOption struct {
-	UnixTime int64
+type SubscribeOptions struct {
+	Topics    []string
+	TimeStamp int64
+	MetaInfo  interface{}
 }
 
-func TimeStamp(t time.Time) TimeStampOption {
-	return UnixTimestamp(t.UnixNano())
+type UnsubscribeOptions struct {
+	Topics    []string
+	All       bool
+	TimeStamp int64
+	MetaInfo  interface{}
 }
 
-func UnixTimestamp(t int64) TimeStampOption {
-	return TimeStampOption{UnixTime: t}
+type EventOptions struct {
+	Name      string
+	Args      []interface{}
+	TimeStamp int64
+	MetaInfo  interface{}
 }
 
-type MetaInfoOption struct {
-	Data interface{}
-}
-
-func MetaInfo(data interface{}) MetaInfoOption {
-	return MetaInfoOption{data}
+type DisconnectOptions struct {
+	TimeStamp int64
+	MetaInfo  interface{}
 }

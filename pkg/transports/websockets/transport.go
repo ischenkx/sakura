@@ -17,8 +17,8 @@ var bufferPool = &sync.Pool{
 
 type Transport struct {
 	conn net.Conn
-	buf *bytes.Buffer
-	mu sync.Mutex
+	buf  *bytes.Buffer
+	mu   sync.Mutex
 }
 
 // writes a message
@@ -44,7 +44,7 @@ func (t *Transport) writeServiceMessage(m message) (int, error) {
 	bts := t.buf.Bytes()
 	n := len(bts)
 	err := wsutil.WriteServerBinary(t.conn, bts)
-	if m.opCode == authAckCode && len(m.data) > 8{
+	if m.opCode == authAckCode && len(m.data) > 8 {
 		log.Println("sending:", string(m.data))
 	}
 	t.buf.Reset()

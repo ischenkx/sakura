@@ -2,10 +2,11 @@ package websockets
 
 import (
 	"errors"
-	"github.com/ischenkx/notify"
 	"github.com/gobwas/ws"
+	"github.com/ischenkx/swirl"
 	"github.com/sirupsen/logrus"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -14,9 +15,10 @@ import (
 var logger = logrus.WithField("source", "ws_logger")
 
 type Config struct {
+	NoDelay bool
 	AuthReadTimeout time.Duration
-	ReadTimeout time.Duration
-	Upgrader ws.HTTPUpgrader
+	ReadTimeout     time.Duration
+	Upgrader        ws.HTTPUpgrader
 }
 
 // Server uses a custom protocol for websocket communication.
@@ -26,9 +28,9 @@ type Config struct {
 //
 // Connection algorithm is pretty simple:
 //
-// 1. Client connects
+// 1. client connects
 //
-// 2. Client sends auth data
+// 2. client sends auth data
 //
 // 3. Server authenticates client
 //
@@ -38,12 +40,12 @@ type Config struct {
 //
 // 5. Server reads messages and handles ping requests
 type Server struct {
-	mu       sync.RWMutex
-	app      notify.Server
+	mu     sync.RWMutex
+	app    swirl.Server
 	config Config
 }
 
-func (s *Server) authenticate(t *Transport) (string, error) {
+func (s *Server) authenticate(t *Transport) (swirl.Client, error) {
 
 	deadline := time.Time{}
 
@@ -52,20 +54,21 @@ func (s *Server) authenticate(t *Transport) (string, error) {
 	}
 
 	if err := t.conn.SetReadDeadline(deadline); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	mes, err := t.readMessage()
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	switch mes.opCode {
 	case authReqCode:
 		authData := string(mes.data)
 		t.conn.SetReadDeadline(time.Time{})
-		return s.app.Connect(authData, notify.ConnectOptions{
+		return s.app.Connect(swirl.ConnectOptions{
+			Auth:      authData,
 			Writer:    t,
 			TimeStamp: time.Now().UnixNano(),
 			Meta:      t.conn,
@@ -73,11 +76,11 @@ func (s *Server) authenticate(t *Transport) (string, error) {
 	case pingCode:
 		err = s.sendPong(mes.data, t)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		return s.authenticate(t)
 	default:
-		return "", errors.New("failed to authenticate: received message with a wrong opcode")
+		return nil, errors.New("failed to authenticate: received message with a wrong opcode")
 	}
 
 }
@@ -114,9 +117,13 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 		return
 	}
 
+	if c, ok := conn.(*net.TCPConn); ok {
+		c.SetNoDelay(s.config.NoDelay)
+	}
+
 	t := newTransport(conn)
 
-	id, err := s.authenticate(t)
+	client, err := s.authenticate(t)
 
 	if err != nil {
 		log.Println(err)
@@ -134,7 +141,7 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 	})
 
 	if err != nil {
-		s.app.Inactivate(id)
+		s.app.Inactivate(client.ID(), time.Now().UnixNano())
 		t.Close()
 		return
 	}
@@ -146,19 +153,19 @@ func (s *Server) serveWS(r *http.Request, w http.ResponseWriter) {
 		}
 		err = t.conn.SetReadDeadline(deadline)
 		if err != nil {
-			s.app.Inactivate(id)
+			s.app.Inactivate(client.ID(), time.Now().UnixNano())
 			t.Close()
 			return
 		}
 		mes, err := t.readMessage()
 		if err != nil {
-			s.app.Inactivate(id)
+			s.app.Inactivate(client.ID(), time.Now().UnixNano())
 			t.Close()
 			return
 		}
-		err = s.handleMessage(id, t, mes)
+		err = s.handleMessage(client.ID(), t, mes)
 		if err != nil {
-			s.app.Inactivate(id)
+			s.app.Inactivate(client.ID(), time.Now().UnixNano())
 			t.Close()
 			return
 		}
@@ -169,9 +176,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.serveWS(r, w)
 }
 
-func NewServer(app notify.Server, config Config) *Server {
+func NewServer(server swirl.Server, config Config) *Server {
 	s := &Server{}
-	s.app = app
+	s.app = server
 	s.config = config
 	return s
 }

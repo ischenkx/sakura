@@ -3,7 +3,8 @@ package batchproto
 import (
 	"bytes"
 	"encoding/binary"
-	message2 "github.com/ischenkx/notify/internal/pubsub/message"
+	"github.com/ischenkx/swirl/internal/pubsub/message"
+
 	"io"
 )
 
@@ -14,20 +15,19 @@ const (
 
 type batch struct {
 	bts      []byte
-	messages message2.Buffer
+	messages message.Buffer
 }
 
 func (b batch) Bytes() []byte {
 	return b.bts
 }
 
-func (b batch) Messages() message2.Buffer {
+func (b batch) Messages() message.Buffer {
 	return b.messages
 }
 
-
 type batcher struct {
-	messagesToWrite, shortMessages []message2.Message
+	messagesToWrite, shortMessages []message.Message
 	smallBuffer, bigBuffer         *bytes.Buffer
 	hptrSet                        bool
 	previousOp                     int
@@ -35,12 +35,12 @@ type batcher struct {
 	maxSize                        int
 }
 
-func (w *batcher) encodeMessage(to io.Writer, mes message2.Message) {
+func (w *batcher) encodeMessage(to io.Writer, mes message.Message) {
 	binary.Write(to, binary.LittleEndian, int32(len(mes.Data)))
 	to.Write(mes.Data)
 }
 
-func (w *batcher) PutMessages(messages message2.Buffer) {
+func (w *batcher) PutMessages(messages message.Buffer) {
 
 	w.messagesToWrite = append(w.messagesToWrite, messages.Slice()...)
 }
@@ -77,14 +77,14 @@ func (w *batcher) Next() (b batch, dataAvailable bool) {
 			w.previousOp = bigBufferWriteOp
 			w.offset++
 			w.encodeMessage(w.bigBuffer, mes)
-			b.messages = message2.BufferFrom([]message2.Message{mes})
+			b.messages = message.BufferFrom([]message.Message{mes})
 			b.bts = w.bigBuffer.Bytes()
 			dataAvailable = true
 			return
 		}
 		if len(mes.Data)+4+w.smallBuffer.Len() > w.maxSize {
 			w.previousOp = smallBufferWriteOp
-			b.messages = message2.BufferFrom(w.shortMessages)
+			b.messages = message.BufferFrom(w.shortMessages)
 			b.bts = w.smallBuffer.Bytes()
 			dataAvailable = true
 			return
@@ -97,7 +97,7 @@ func (w *batcher) Next() (b batch, dataAvailable bool) {
 	}
 	if len(w.shortMessages) > 0 {
 		w.previousOp = smallBufferWriteOp
-		b.messages = message2.BufferFrom(w.shortMessages)
+		b.messages = message.BufferFrom(w.shortMessages)
 		b.bts = w.smallBuffer.Bytes()
 		dataAvailable = true
 		return

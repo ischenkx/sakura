@@ -6,7 +6,7 @@ import (
 	"errors"
 )
 
-type JSON struct {}
+type JSON struct{}
 
 func (JSON) Marshal(i []interface{}) ([]byte, error) {
 	return json.Marshal(i)

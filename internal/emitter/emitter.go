@@ -70,7 +70,7 @@ func (e *Emitter) Handle(name string, hnd interface{}) error {
 
 func New(codec EventsCodec, appType, clientType reflect.Type) *Emitter {
 	return &Emitter{
-		handlers: map[string]*Handler{},
+		handlers:   map[string]*Handler{},
 		codec:      codec,
 		appType:    appType,
 		clientType: clientType,

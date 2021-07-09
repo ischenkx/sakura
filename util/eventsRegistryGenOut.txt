@@ -1,0 +1,113 @@
+type eventsRegistry struct {
+    app *App
+mu sync.RWMutex
+appEventHandlers []*localAppEvents
+}
+func (evs *eventsRegistry) callEmit(arg0 EmitOptions) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callEmit(arg0)
+        }
+    }
+func (evs *eventsRegistry) callEvent(arg0 Client, arg1 EventOptions) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callEvent(arg0,arg1)
+        }
+    }
+func (evs *eventsRegistry) callConnect(arg0 ConnectOptions, arg1 Client) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callConnect(arg0,arg1)
+        }
+    }
+func (evs *eventsRegistry) callDisconnect(arg0 Client) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callDisconnect(arg0)
+        }
+    }
+func (evs *eventsRegistry) callReconnect(arg0 ConnectOptions, arg1 Client) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callReconnect(arg0,arg1)
+        }
+    }
+func (evs *eventsRegistry) callInactivate(arg0 Client) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callInactivate(arg0)
+        }
+    }
+func (evs *eventsRegistry) callError(arg0 error) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callError(arg0)
+        }
+    }
+func (evs *eventsRegistry) callChange(arg0 ChangeLog) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callChange(arg0)
+        }
+    }
+func (evs *eventsRegistry) callClientSubscribe(arg0 Client, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callClientSubscribe(arg0,arg1,arg2)
+        }
+    }
+func (evs *eventsRegistry) callUserSubscribe(arg0 User, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callUserSubscribe(arg0,arg1,arg2)
+        }
+    }
+func (evs *eventsRegistry) callClientUnsubscribe(arg0 Client, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callClientUnsubscribe(arg0,arg1,arg2)
+        }
+    }
+func (evs *eventsRegistry) callUserUnsubscribe(arg0 User, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]*localAppEvents, len(evs.appEventHandlers))
+        copy(handlers, evs.appEventHandlers)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h.callUserUnsubscribe(arg0,arg1,arg2)
+        }
+    }

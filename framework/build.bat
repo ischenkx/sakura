@@ -1,1 +1,0 @@
-go build -o ./bin/notify.exe ./cli/main.go

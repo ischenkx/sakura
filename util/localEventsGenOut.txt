@@ -1,0 +1,186 @@
+type localAppEvents struct {
+    priority Priority
+registry *eventsRegistry
+id string
+mu sync.RWMutex
+_Emit []func(*App, EmitOptions)
+_Event []func(*App, Client, EventOptions)
+_Connect []func(*App, ConnectOptions, Client)
+_Disconnect []func(*App, Client)
+_Reconnect []func(*App, ConnectOptions, Client)
+_Inactivate []func(*App, Client)
+_Error []func(*App, error)
+_Change []func(*App, ChangeLog)
+_ClientSubscribe []func(*App, Client, string, int64)
+_UserSubscribe []func(*App, User, string, int64)
+_ClientUnsubscribe []func(*App, Client, string, int64)
+_UserUnsubscribe []func(*App, User, string, int64)
+}
+func (evs *localAppEvents) callEmit(arg0 EmitOptions) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, EmitOptions), len(evs._Emit))
+        copy(handlers, evs._Emit)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0)
+        }
+    }
+func (evs *localAppEvents) OnEmit(f func(*App, EmitOptions)) {
+        evs.mu.Lock()
+        evs._Emit = append(evs._Emit, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callEvent(arg0 Client, arg1 EventOptions) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, Client, EventOptions), len(evs._Event))
+        copy(handlers, evs._Event)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1)
+        }
+    }
+func (evs *localAppEvents) OnEvent(f func(*App, Client, EventOptions)) {
+        evs.mu.Lock()
+        evs._Event = append(evs._Event, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callConnect(arg0 ConnectOptions, arg1 Client) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, ConnectOptions, Client), len(evs._Connect))
+        copy(handlers, evs._Connect)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1)
+        }
+    }
+func (evs *localAppEvents) OnConnect(f func(*App, ConnectOptions, Client)) {
+        evs.mu.Lock()
+        evs._Connect = append(evs._Connect, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callDisconnect(arg0 Client) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, Client), len(evs._Disconnect))
+        copy(handlers, evs._Disconnect)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0)
+        }
+    }
+func (evs *localAppEvents) OnDisconnect(f func(*App, Client)) {
+        evs.mu.Lock()
+        evs._Disconnect = append(evs._Disconnect, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callReconnect(arg0 ConnectOptions, arg1 Client) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, ConnectOptions, Client), len(evs._Reconnect))
+        copy(handlers, evs._Reconnect)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1)
+        }
+    }
+func (evs *localAppEvents) OnReconnect(f func(*App, ConnectOptions, Client)) {
+        evs.mu.Lock()
+        evs._Reconnect = append(evs._Reconnect, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callInactivate(arg0 Client) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, Client), len(evs._Inactivate))
+        copy(handlers, evs._Inactivate)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0)
+        }
+    }
+func (evs *localAppEvents) OnInactivate(f func(*App, Client)) {
+        evs.mu.Lock()
+        evs._Inactivate = append(evs._Inactivate, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callError(arg0 error) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, error), len(evs._Error))
+        copy(handlers, evs._Error)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0)
+        }
+    }
+func (evs *localAppEvents) OnError(f func(*App, error)) {
+        evs.mu.Lock()
+        evs._Error = append(evs._Error, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callChange(arg0 ChangeLog) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, ChangeLog), len(evs._Change))
+        copy(handlers, evs._Change)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0)
+        }
+    }
+func (evs *localAppEvents) OnChange(f func(*App, ChangeLog)) {
+        evs.mu.Lock()
+        evs._Change = append(evs._Change, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callClientSubscribe(arg0 Client, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, Client, string, int64), len(evs._ClientSubscribe))
+        copy(handlers, evs._ClientSubscribe)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1,arg2)
+        }
+    }
+func (evs *localAppEvents) OnClientSubscribe(f func(*App, Client, string, int64)) {
+        evs.mu.Lock()
+        evs._ClientSubscribe = append(evs._ClientSubscribe, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callUserSubscribe(arg0 User, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, User, string, int64), len(evs._UserSubscribe))
+        copy(handlers, evs._UserSubscribe)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1,arg2)
+        }
+    }
+func (evs *localAppEvents) OnUserSubscribe(f func(*App, User, string, int64)) {
+        evs.mu.Lock()
+        evs._UserSubscribe = append(evs._UserSubscribe, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callClientUnsubscribe(arg0 Client, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, Client, string, int64), len(evs._ClientUnsubscribe))
+        copy(handlers, evs._ClientUnsubscribe)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1,arg2)
+        }
+    }
+func (evs *localAppEvents) OnClientUnsubscribe(f func(*App, Client, string, int64)) {
+        evs.mu.Lock()
+        evs._ClientUnsubscribe = append(evs._ClientUnsubscribe, f)
+        evs.mu.Unlock()
+    }
+func (evs *localAppEvents) callUserUnsubscribe(arg0 User, arg1 string, arg2 int64) {
+        evs.mu.RLock()
+        handlers := make([]func(*App, User, string, int64), len(evs._UserUnsubscribe))
+        copy(handlers, evs._UserUnsubscribe)
+        evs.mu.RUnlock()
+        for _, h := range handlers {
+            h(evs.registry.app, arg0,arg1,arg2)
+        }
+    }
+func (evs *localAppEvents) OnUserUnsubscribe(f func(*App, User, string, int64)) {
+        evs.mu.Lock()
+        evs._UserUnsubscribe = append(evs._UserUnsubscribe, f)
+        evs.mu.Unlock()
+    }
