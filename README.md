@@ -1,7 +1,19 @@
-STILL IN DEVELOPMENT!!!
+### About
 
+A library for real-time communication in modern web applications
+
+General concepts:
+- Client - a single connection (for example a websocket) that's used for transferring events
+- User - an abstract entity that is mainly used for storing persistent subscriptions
+- Topic - an abstract group that users and clients can join or leave (for example some chat room)
+
+#### Install
+```
+go get github.com/ischenkx/swirl
+```
+
+#### Example
 Simple echo server
-
 ```go
 package main
 
@@ -17,12 +29,7 @@ import (
 )
 
 func main() {
-	app := swirl.New(swirl.Config{
-		EventsCodec:      evcodec.JSON{},
-		ProtocolProvider: batchproto.NewProvider(1024),
-		Auth:             authmock.New(),
-		Adapter:          nil,
-	})
+	app := swirl.New(swirl.Config{})
 
 	app.Start(context.Background())
 
