@@ -10,6 +10,15 @@ type ChangeLog struct {
 	TimeStamp   int64
 }
 
+func (c *ChangeLog) IsEmpty() bool {
+	return len(c.TopicsUp) == 0 &&
+		len(c.TopicsDown) == 0 &&
+		len(c.UsersUp) == 0 &&
+		len(c.UsersDown) == 0 &&
+		len(c.ClientsUp) == 0 &&
+		len(c.ClientsDown) == 0
+}
+
 func (c *ChangeLog) Merge(c1 ChangeLog) {
 	c.ClientsUp = append(c.ClientsUp, c1.ClientsUp...)
 	c.ClientsDown = append(c.ClientsDown, c1.ClientsDown...)

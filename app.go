@@ -6,7 +6,6 @@ import (
 	"github.com/ischenkx/swirl/internal/pubsub"
 	authmock "github.com/ischenkx/swirl/pkg/auth/mock"
 	evcodec "github.com/ischenkx/swirl/pkg/default/event_codec"
-	"log"
 	"reflect"
 	"time"
 )
@@ -20,9 +19,15 @@ type Config struct {
 }
 
 func (c *Config) validate() {
-	c.Auth = authmock.New()
-	c.Adapter = nil
-	c.EventsCodec = evcodec.JSON{}
+	if c.Auth == nil {
+		c.Auth = authmock.New()
+	}
+	if c.CleanInterval <= 0 {
+		c.CleanInterval = time.Second * 15
+	}
+	if c.EventsCodec == nil {
+		c.EventsCodec = evcodec.JSON{}
+	}
 }
 
 type App struct {
@@ -154,7 +159,11 @@ func (app *App) Server() Server {
 
 func (app *App) On(event string, handler interface{}) {
 	if err := app.emitter.Handle(event, handler); err != nil {
-		log.Println(err)
+		app.events.callError(HandlerInitializationError{
+			Reason:    err,
+			EventName: event,
+			Handler:   handler,
+		})
 	}
 }
 

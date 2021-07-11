@@ -22,10 +22,9 @@ func (s *Server) Inactivate(id string, ts int64) {
 }
 
 func (s *Server) Connect(opts ConnectOptions) (Client, error) {
-
 	cl := ChangeLog{TimeStamp: opts.TimeStamp}
-
 	clientID, userID, err := s.app.auth.Authorize(opts.Auth)
+
 	if err != nil {
 		s.app.events.callError(ConnectionNotEstablishedErr{
 			Reason:         err,
@@ -45,6 +44,7 @@ func (s *Server) Connect(opts ConnectOptions) (Client, error) {
 	cl.ClientsUp = append(cl.ClientsUp, clientID)
 
 	cl.Merge(s.app.pubsub.Users().Add(userID, clientID, opts.TimeStamp))
+
 	for _, sub := range s.app.User(clientID).Subscriptions().Array() {
 		if c, err := s.app.pubsub.Subscribe(clientID, sub.Topic, sub.TimeStamp); err == nil {
 			cl.Merge(c)
@@ -58,6 +58,15 @@ func (s *Server) Connect(opts ConnectOptions) (Client, error) {
 	} else {
 		s.app.events.callConnect(opts, s.app.Client(clientID))
 	}
+
+	if len(res.UnrecoverableTopics) > 0 {
+		s.app.events.callError(FailedMessageRecoveryError{
+			Topics:    res.UnrecoverableTopics,
+			Client:    s.app.Client(clientID),
+			TimeStamp: opts.TimeStamp,
+		})
+	}
+
 	return s.app.Client(clientID), nil
 }
 
@@ -73,7 +82,7 @@ func (s *Server) HandleMessage(clientID string, message []byte) {
 	h, ok := s.app.emitter.GetHandler(name)
 
 	if !ok {
-		s.app.events.callError(HandlerNotFoundErr{name})
+		s.app.events.callError(HandlerNotFoundError{name})
 		return
 	}
 

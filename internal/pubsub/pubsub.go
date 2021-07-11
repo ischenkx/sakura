@@ -21,13 +21,23 @@ type Config struct {
 	ClientInvalidationTime time.Duration
 	ProtocolProvider       protocol.Provider
 	History                message.History
+	QueueProcessors 	   int
 	Engines                int
 }
 
 func (c *Config) validate() {
-	c.Engines = 100
-	c.ClientInvalidationTime = time.Minute * 2
-	c.ProtocolProvider = batchproto.NewProvider(1024)
+	if c.Engines <= 0 {
+		c.Engines = 100
+	}
+	if c.ClientInvalidationTime < 0 {
+		c.ClientInvalidationTime = time.Minute * 2
+	}
+	if c.ProtocolProvider == nil {
+		c.ProtocolProvider = batchproto.NewProvider(1024)
+	}
+	if c.QueueProcessors <= 0 {
+		c.QueueProcessors = runtime.NumCPU()
+	}
 }
 
 type ConnectResult struct {
@@ -177,7 +187,7 @@ func (p *PubSub) processQueue(ctx context.Context) {
 }
 
 func (p *PubSub) Start(ctx context.Context) {
-	for i := 0; i < runtime.NumCPU(); i++ {
+	for i := 0; i < p.config.QueueProcessors; i++ {
 		go p.processQueue(ctx)
 	}
 }
@@ -194,6 +204,7 @@ func New(cfg Config) *PubSub {
 		users:            user.NewRegistry(),
 		queue:            make(chan common.Flusher, 8192),
 		protocolProvider: cfg.ProtocolProvider,
+		config: cfg,
 	}
 
 	for i := 0; i < cfg.Engines; i++ {

@@ -8,8 +8,6 @@ const OPCODES = {
 
 export class NotifySocket {
     constructor(cfg) {
-
-        console.log(cfg)
         this.ws = null
         this.protocols = cfg.protocols
         this.url = cfg.url

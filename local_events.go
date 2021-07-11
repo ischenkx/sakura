@@ -10,7 +10,7 @@ import (
 type Priority int
 
 // -----------------------
-// A LOT OF GENERATED CODE
+// A LOT OF GENERATED CODE (A DIRTY TRICK AND THE CODE BELOW STINKS BUT I AM TO LAZY TO WRITE BOILERPLATE CODE FOR ALL EVENTS)
 // -----------------------
 
 type localAppEvents struct {
@@ -272,6 +272,10 @@ func (reg *eventsRegistry) callError(arg0 error) {
 	}
 }
 func (reg *eventsRegistry) callChange(arg0 ChangeLog) {
+	// OPTIMIZATION (NOT GENERATED)
+	if arg0.IsEmpty() {
+		return
+	}
 	reg.mu.RLock()
 	handlers := make([]*localAppEvents, len(reg.appEventHandlers))
 	copy(handlers, reg.appEventHandlers)

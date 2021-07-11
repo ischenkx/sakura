@@ -41,9 +41,18 @@ export class Emitter {
     __initEvents() {
         this.client.hook('message', mes => {
             let len = mes[0].charCodeAt(0)
+            if(mes.length < len+1) {
+                return
+            }
             let name = mes.slice(1, len + 1)
-            let data = JSON.parse(mes.slice(len + 1))
-            this.__handleEvent(name, ...data)
+            try {
+                let data = JSON.parse(mes.slice(len + 1))
+                if(!Array.isArray(data)) return
+                this.__handleEvent(name, ...data)
+            } catch(ex) {
+
+            }
+
         })
     }
 }
