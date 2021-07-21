@@ -17,7 +17,7 @@ type Handler struct {
 	codec                 EventsCodec
 }
 
-func (h *Handler) getZeroArgs() []interface{} {
+func (h *Handler) zeroArgs() []interface{} {
 	args := make([]interface{}, len(h.dataTypes))
 	for i, argType := range h.dataTypes {
 		args[i] = reflect.New(argType).Interface()
@@ -26,7 +26,7 @@ func (h *Handler) getZeroArgs() []interface{} {
 }
 
 func (h *Handler) DecodeData(data []byte) ([]interface{}, error) {
-	args := h.getZeroArgs()
+	args := h.zeroArgs()
 	return args, h.codec.Unmarshal(data, args)
 }
 

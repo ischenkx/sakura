@@ -147,7 +147,7 @@ func (app *App) startCleaner(ctx context.Context) {
 
 func (app *App) Start(ctx context.Context) {
 	if app.adapter != nil {
-		go app.adapter.Start(ctx, app)
+		go app.adapter.Start(ctx)
 	}
 	go app.startCleaner(ctx)
 	go app.pubsub.Start(ctx)
@@ -181,6 +181,13 @@ func (app *App) initMetricsCollector() {
 	app.metricsCollector = newMetricsCollector(app)
 }
 
+func (app *App) initAdapter() {
+	if app.adapter == nil {
+		return
+	}
+	app.adapter.Init(app)
+}
+
 func New(config Config) *App {
 	config.validate()
 	app := &App{
@@ -189,6 +196,7 @@ func New(config Config) *App {
 		auth:    config.Auth,
 		config: config,
 	}
+	app.initAdapter()
 	app.initEventsRegistry()
 	app.initEmitter()
 	app.initMetricsCollector()

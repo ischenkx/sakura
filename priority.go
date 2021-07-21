@@ -1,6 +1,6 @@
 package swirl
 
 const (
-	PluginPriority HookPriority = 0
+	PluginPriority Priority = 0
 	UserPriority                = 1 << 16
 )

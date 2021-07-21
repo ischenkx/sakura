@@ -42,10 +42,3 @@ func (c *client) Events() swirl.ClientEvents {
 func (c *client) Subscriptions() swirl.SubscriptionList {
 	panic("implement me")
 }
-
-func newClient(a *Adapter, lc swirl.Client) swirl.Client {
-	return &client{
-		adapter:     a,
-		localClient: lc,
-	}
-}
