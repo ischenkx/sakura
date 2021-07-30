@@ -7,13 +7,13 @@ type Handle interface {
 }
 
 type Adapter interface {
-	Client(string) Client
-	User(string) User
-	Topic(string) Topic
+	Client(*App, string) Client
+	User(*App, string) User
+	Topic(*App, string) Topic
 	Emit(EventOptions)
 	Metrics() Metrics
 	Handle(string, interface{}) (Handle, error)
-	Start(ctx context.Context)
+	Start(context.Context, *App)
 	Init(app *App)
 }
 
