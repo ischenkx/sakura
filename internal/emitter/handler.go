@@ -114,7 +114,7 @@ func newHandler(hnd interface{}, codec EventsCodec, appType, clientType reflect.
 		dataTypesFlag = true
 
 		if utils.IsInterface(paramType) && !utils.IsEmptyInterface(paramType) {
-			return nil, errors.New("handler can not receive interface parameters")
+			return nil, errors.New("handler can not receive common parameters")
 		}
 
 		h.dataTypes = append(h.dataTypes, paramType)

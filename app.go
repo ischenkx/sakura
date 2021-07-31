@@ -11,11 +11,11 @@ import (
 )
 
 type Config struct {
-	CleanInterval time.Duration
-	PubSubConfig  pubsub.Config
-	EventsCodec   emitter.EventsCodec
-	Auth          Authorizer
-	Adapter       Adapter
+	CleanInterval  time.Duration
+	PubSubConfig   pubsub.Config
+	EventsCodec    emitter.EventsCodec
+	Auth           Authorizer
+	AdapterBuilder AdapterBuilder
 }
 
 func (c *Config) validate() {
@@ -94,7 +94,7 @@ func (app *App) Client(id string, flags ...interface{}) Client {
 		}
 	}
 	if app.adapter != nil {
-		return app.adapter.Client(app, id)
+		return app.adapter.Client(id)
 	}
 	return app.localClient(id)
 }
@@ -107,7 +107,7 @@ func (app *App) User(id string, flags ...interface{}) User {
 		}
 	}
 	if app.adapter != nil {
-		return app.adapter.User(app, id)
+		return app.adapter.User(id)
 	}
 	return app.localUser(id)
 }
@@ -120,7 +120,7 @@ func (app *App) Topic(id string, flags ...interface{}) Topic {
 		}
 	}
 	if app.adapter != nil {
-		return app.adapter.Topic(app, id)
+		return app.adapter.Topic(id)
 	}
 	return app.localTopic(id)
 }
@@ -147,7 +147,7 @@ func (app *App) startCleaner(ctx context.Context) {
 
 func (app *App) Start(ctx context.Context) {
 	if app.adapter != nil {
-		go app.adapter.Start(ctx, app)
+		go app.adapter.Start(ctx)
 	}
 	go app.startCleaner(ctx)
 	go app.pubsub.Start(ctx)
@@ -181,24 +181,21 @@ func (app *App) initMetricsCollector() {
 	app.metricsCollector = newMetricsCollector(app)
 }
 
-func (app *App) initAdapter() {
-	if app.adapter == nil {
-		return
-	}
-	app.adapter.Init(app)
-}
-
 func New(config Config) *App {
 	config.validate()
 	app := &App{
 		pubsub:  pubsub.New(config.PubSubConfig),
-		adapter: config.Adapter,
 		auth:    config.Auth,
-		config: config,
+		config:  config,
 	}
-	app.initAdapter()
+
 	app.initEventsRegistry()
 	app.initEmitter()
 	app.initMetricsCollector()
+
+	if config.AdapterBuilder != nil {
+		app.adapter = config.AdapterBuilder.Build(app)
+	}
+
 	return app
 }
