@@ -1,6 +1,8 @@
 package subscription
 
-import "sakura/data"
+import (
+	"sakura/common/data"
+)
 
 type Storage data.Storage[Subscription, Selector]
 
