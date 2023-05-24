@@ -2,11 +2,16 @@ package sakura
 
 import (
 	"context"
-	"fmt"
+	"sakura/channels"
 	"sakura/common/util"
 	"sakura/core/event"
 	subscription2 "sakura/core/subscription"
+	"strings"
 )
+
+func ChannelToTopicID(channel string) string {
+	return strings.TrimPrefix(channel, "topic/")
+}
 
 type AbstractTopic interface {
 	ID() string
@@ -60,7 +65,7 @@ func (topic Topic) Publish(ctx context.Context, data []byte) error {
 }
 
 func (topic Topic) Channel() string {
-	return fmt.Sprintf("topic/%s", topic.ID())
+	return channels.FromTopic(topic.id)
 }
 
 func (topic Topic) pushEvent(ctx context.Context, ev string, data []byte) error {

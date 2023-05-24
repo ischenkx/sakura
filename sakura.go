@@ -7,9 +7,12 @@ import (
 	"sakura/core/subscription"
 )
 
+type Broker broker.Broker[event.Event]
+type PubSub broker.PubSub[event.Event]
+
 type Builder struct {
 	Subscriptions subscription.Storage
-	Broker        broker.Broker[event.Event]
+	Broker        Broker
 }
 
 func (builder Builder) Build() *Sakura {
@@ -21,7 +24,7 @@ func (builder Builder) Build() *Sakura {
 
 type Sakura struct {
 	subscriptions subscription.Storage
-	broker        broker.Broker[event.Event]
+	broker        Broker
 	plugins       []Plugin
 }
 

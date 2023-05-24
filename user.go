@@ -2,8 +2,8 @@ package sakura
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"sakura/channels"
 	"sakura/common/util"
 	"sakura/core/event"
 	subscription2 "sakura/core/subscription"
@@ -89,7 +89,7 @@ func (user User) Subscriptions(ctx context.Context) ([]string, error) {
 }
 
 func (user User) Channel() string {
-	return fmt.Sprintf("topic/%s", user.ID())
+	return channels.FromUser(user.id)
 }
 
 func (user User) postEvent(ctx context.Context, ev string, data []byte) {

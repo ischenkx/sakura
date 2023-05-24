@@ -8,12 +8,12 @@ import (
 	"sakura/core/broker"
 )
 
-type Broker[Message any] struct {
+type Broker[T any] struct {
 	client redis.UniversalClient
-	codec  codec.Binary[Message]
+	codec  codec.Binary[T]
 }
 
-func (b *Broker[Message]) Push(ctx context.Context, channel string, message Message) error {
+func (b *Broker[T]) Push(ctx context.Context, channel string, message T) error {
 	payload, err := b.codec.Encoder().Convert(message)
 	if err != nil {
 		return err
@@ -21,43 +21,43 @@ func (b *Broker[Message]) Push(ctx context.Context, channel string, message Mess
 	return b.client.Publish(ctx, channel, payload).Err()
 }
 
-func (b *Broker[Message]) PubSub(ctx context.Context) broker.PubSub[Message] {
+func (b *Broker[T]) PubSub(ctx context.Context) broker.PubSub[T] {
 	pubsub := b.client.Subscribe(ctx)
-	return &PubSub[Message]{
+	return &PubSub[T]{
 		pubsub: pubsub,
 		codec:  b.codec,
 	}
 }
 
-type PubSub[Message any] struct {
+type PubSub[T any] struct {
 	pubsub *redis.PubSub
-	codec  codec.Binary[Message]
+	codec  codec.Binary[T]
 }
 
-func (p *PubSub[Message]) Subscribe(ctx context.Context, channels ...string) error {
+func (p *PubSub[T]) Subscribe(ctx context.Context, channels ...string) error {
 	if len(channels) == 0 {
 		return nil
 	}
 	return p.pubsub.Subscribe(ctx, channels...)
 }
 
-func (p *PubSub[Message]) Unsubscribe(ctx context.Context, channels ...string) error {
+func (p *PubSub[T]) Unsubscribe(ctx context.Context, channels ...string) error {
 	if len(channels) == 0 {
 		return nil
 	}
 	return p.pubsub.Unsubscribe(ctx, channels...)
 }
 
-func (p *PubSub[Message]) Channel(ctx context.Context) (<-chan Message, error) {
+func (p *PubSub[T]) Channel(ctx context.Context) (<-chan broker.Message[T], error) {
 	messages := p.pubsub.Channel()
-	outputs := make(chan Message, 512)
+	outputs := make(chan broker.Message[T], 512)
 
-	go func(ctx context.Context, ch chan<- Message) {
+	go func(ctx context.Context, ch chan<- broker.Message[T]) {
 		<-ctx.Done()
 		close(ch)
 	}(ctx, outputs)
 
-	go func(ctx context.Context, from <-chan *redis.Message, to chan<- Message) {
+	go func(ctx context.Context, from <-chan *redis.Message, to chan<- broker.Message[T]) {
 	loop:
 		for {
 			select {
@@ -72,7 +72,10 @@ func (p *PubSub[Message]) Channel(ctx context.Context) (<-chan Message, error) {
 					continue
 				}
 
-				to <- message
+				to <- broker.Message[T]{
+					Channel: rawMessage.Channel,
+					Data:    []byte(message),
+				}
 			}
 		}
 	}(ctx, messages, outputs)
@@ -80,6 +83,6 @@ func (p *PubSub[Message]) Channel(ctx context.Context) (<-chan Message, error) {
 	return outputs, nil
 }
 
-func (p *PubSub[Message]) Clear(ctx context.Context) error {
+func (p *PubSub[T]) Clear(ctx context.Context) error {
 	return p.pubsub.Unsubscribe(ctx)
 }
